@@ -723,9 +723,23 @@
 
   // Score bookmarks
   document.getElementById("scoreBtn").addEventListener("click", async () => {
+    const metas = await Features.getMetas();
+    const unscored = metas.filter(m => m.summary && (!m.score || m.score === 0)).length;
+    let force = false;
+    if (unscored === 0) {
+      const scored = metas.filter(m => m.summary).length;
+      if (!confirm(`所有 ${scored} 条已评分。是否用新标准强制重新评分全部？`)) return;
+      force = true;
+    } else if (unscored < metas.filter(m => m.summary).length) {
+      if (confirm(`${unscored} 条未评分，${metas.filter(m => m.summary).length - unscored} 条已评分。\n点「确定」只评未评的\n点「取消」强制全部重新评分`)) {
+        force = false;
+      } else {
+        force = true;
+      }
+    }
     showToast("AI 书签评分中...");
     const result = await Features.scoreBookmarks(
-      (msg) => showToast(msg, true)
+      (msg) => showToast(msg, true), 30, force
     );
     await refresh();
     render();

@@ -40,10 +40,12 @@ const Features = (() => {
   /* ================================================================== */
   /* 1. Bookmark Scoring (batch LLM, uses existing summaries)             */
   /* ================================================================== */
-  async function scoreBookmarks(onProgress, batchSize = 30) {
+  async function scoreBookmarks(onProgress, batchSize = 30, force = false) {
     const metas = await getMetas();
-    const toScore = metas.filter(m => m.summary && (!m.score || m.score === 0));
-    if (toScore.length === 0) return { done: 0, msg: "所有书签已评分" };
+    const toScore = force
+      ? metas.filter(m => m.summary) // re-score all
+      : metas.filter(m => m.summary && (!m.score || m.score === 0));
+    if (toScore.length === 0) return { done: 0, msg: "所有书签已评分，可强制重新评分" };
 
     let done = 0;
     for (let i = 0; i < toScore.length; i += batchSize) {
