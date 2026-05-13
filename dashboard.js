@@ -231,7 +231,7 @@
   }
 
   function cardHTML(b) {
-    const tagsHTML = (b.tags || []).slice(0, 4).map(t => `<span class="bm-tag">${esc(t)}</span>`).join("");
+    const tagsHTML = (b.tags || []).slice(0, 8).map(t => `<span class="bm-tag">${esc(t)}</span>`).join("");
     const summaryHTML = b.summary ? `<p class="bm-summary">${esc(b.summary)}</p>` : "";
     const catHTML = b.category && b.category !== "未分类" ? `<span class="bm-category">${esc(b.category)}</span>` : "";
     const aiBadge = b.summary ? '<span class="ai-badge">AI</span>' : "";

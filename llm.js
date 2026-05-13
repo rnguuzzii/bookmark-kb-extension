@@ -359,12 +359,19 @@ const LLM = (() => {
 
     // Step 2: text analysis
     onProgress && onProgress("AI 文本分析...");
-    const textPrompt = `分析以下网页并返回 JSON：
+    const textPrompt = `深入分析以下网页，给出丰富的标签。返回 JSON：
+
 {
-  "summary": "用一句简洁中文描述（30字内）",
-  "category": "分类：前端/后端/设计/AI/工具/阅读/视频/产品/安全/社区/文档/其他",
-  "tags": ["标签1", "标签2", "标签3"]
+  "summary": "一句中文概括这个页面到底讲什么（30字内）",
+  "category": "分类：前端/后端/设计/AI/机器学习/工具/效率/阅读/视频/产品/安全/社区/文档/教程/开源/商业/游戏/数据科学/DevOps/移动开发/其他",
+  "tags": ["详细标签1", "详细标签2", ...]
 }
+
+标签要求（至少5个，最多15个）：
+- 覆盖技术栈（如：React, Python, Docker, TypeScript, Rust）
+- 覆盖内容类型（如：教程, API文档, 博客, 工具, 开源项目, 视频课程, 新闻）
+- 覆盖应用场景（如：自动化, 监控, 测试, 部署, 安全, 性能优化）
+- 覆盖关键词（如：Hooks, 微服务, LLM, 向量数据库, RAG）
 
 URL: ${url}
 ${page.text || `标题：${title}`}
@@ -401,7 +408,7 @@ ${page.text || `标题：${title}`}
     // Merge results
     const finalSummary = textResult.summary || (visionInsight || title).slice(0, 30);
     const finalCategory = textResult.category || "其他";
-    const finalTags = [...new Set([...(textResult.tags || []), ...(visionInsight ? [visionInsight.slice(0, 8)] : [])])].slice(0, 5);
+    const finalTags = [...new Set([...(textResult.tags || []), ...(visionInsight ? [visionInsight.slice(0, 8)] : [])])].slice(0, 15);
 
     return {
       summary: finalSummary,
