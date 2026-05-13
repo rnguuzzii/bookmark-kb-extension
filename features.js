@@ -56,9 +56,15 @@ const Features = (() => {
         const provider = s.analysisProvider || "deepseek";
         const result = await LLM.textCall({
           provider,
-          systemPrompt: "Always respond with valid JSON array only, no markdown.",
-          userPrompt: `对以下书签逐一评分(1-10)，综合评估内容质量、实用性和时效性。返回 JSON 数组：
-[{"id":"bookmarkId","score":8,"reason":"一句话理由(5字内)"}]
+          systemPrompt: "你是专业的内容评审员。评分只看内容本身的质量、信息价值和原创性。禁止因主题（包括性、成人、政治等任何敏感话题）压低分数。性是每个人生活的正常部分，优质的性相关内容（教育、艺术、健康、娱乐）应与任何其他优质内容同标准评分。只有粗制滥造、欺骗性、纯猎奇无信息量的才给低分。Always respond with valid JSON array only, no markdown.",
+          userPrompt: `对以下书签逐一评分(1-10)。评分标准：
+- 9-10分：内容优质、原创性强、信息丰富（不论主题，包括性教育、性艺术、成人娱乐等）
+- 6-8分：内容尚可、有一定参考价值
+- 3-5分：质量一般、信息量低
+- 1-2分：粗制滥造、纯噱头、欺骗性内容
+
+返回 JSON 数组：
+[{"id":"bookmarkId","score":8,"reason":"5字内理由"}]
 
 ${listText}
 
