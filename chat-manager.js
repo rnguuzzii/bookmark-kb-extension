@@ -605,7 +605,8 @@ const ChatManager = (() => {
   }
 
   function close() {
-    chatContainer.classList.remove("open");
+    chatContainer.classList.remove("open", "minimized");
+    isMinimized = false;
     chatFab.style.display = "";
   }
 

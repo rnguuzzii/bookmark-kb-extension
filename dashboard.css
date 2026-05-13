@@ -264,7 +264,7 @@ button,input,select{font:inherit;color:inherit;outline:none}
 
 /* Body */
 .chat-body{flex:1;display:flex;overflow:hidden}
-.chat-minimized .chat-body{display:none}
+.chat-window.minimized .chat-body{display:none}
 
 /* Sidebar */
 .chat-sidebar{
