@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Markbase — 智能书签知识库",
+  "version": "1.0",
+  "description": "AI 驱动的浏览器书签管理。自动摘要、智能分类、标签生成，支持 DeepSeek / 通义千问 / 豆包。",
+  "permissions": ["bookmarks", "storage"],
+  "host_permissions": [
+    "https://api.deepseek.com/*",
+    "https://dashscope.aliyuncs.com/*",
+    "https://ark.cn-beijing.volces.com/*"
+  ],
+  "action": {
+    "default_title": "Markbase",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

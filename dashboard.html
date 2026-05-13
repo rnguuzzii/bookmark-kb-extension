@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markbase — 智能书签知识库</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+
+  <!-- Loading -->
+  <div class="loader" id="loader">
+    <div class="loader-ring"></div>
+    <span class="loader-text">Markbase</span>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M9 14 L13 18 L19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="sidebar-title">Markbase</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="收起侧栏">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <div class="search-wrap">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input class="search-input" id="searchInput" type="text" placeholder="搜索书签..." autocomplete="off">
+      <button class="search-clear" id="searchClear" style="display:none">&times;</button>
+    </div>
+
+    <div class="sidebar-stats">
+      <div class="sidebar-stat"><strong id="statTotal">0</strong><span>总收藏</span></div>
+      <div class="sidebar-stat"><strong id="statTagged">0</strong><span>已分析</span></div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-label">分类</div>
+      <div class="category-list" id="categoryList">
+        <button class="category-item active" data-category="all">全部</button>
+        <button class="category-item" data-category="uncategorized">未分类</button>
+      </div>
+    </nav>
+
+    <div class="sidebar-tags">
+      <div class="sidebar-nav-label">标签</div>
+      <div class="tag-cloud" id="tagCloud"></div>
+    </div>
+
+    <div class="sidebar-actions">
+      <button class="sidebar-btn" id="syncBtn" title="同步浏览器书签">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 2v6h-6M3 22v-6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="2" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="3" cy="22" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>同步书签</span>
+      </button>
+      <button class="sidebar-btn" id="exportBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>导出 JSON</span>
+      </button>
+      <button class="sidebar-btn" id="settingsBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>API 设置</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="toolbar-title" id="toolbarTitle">全部书签</span>
+        <span class="toolbar-count" id="toolbarCount">0 项</span>
+      </div>
+      <div class="toolbar-right">
+        <select class="sort-select" id="sortSelect">
+          <option value="newest">最近添加</option>
+          <option value="oldest">最早添加</option>
+          <option value="title">按标题</option>
+        </select>
+        <button class="toolbar-btn toolbar-btn-ai" id="batchAiBtn">AI 批处理</button>
+        <button class="toolbar-btn toolbar-btn-ai" id="reanalyzeAllBtn" style="border-color:rgba(231,184,75,0.3);color:var(--gold)">深度重新分析</button>
+        <button class="toolbar-btn" id="addBtn">+ 添加</button>
+      </div>
+    </div>
+
+    <div class="bookmark-grid" id="bookmarkGrid"></div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <rect x="12" y="8" width="40" height="48" rx="6" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M20 28 L28 36 L44 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="20" y1="44" x2="36" y2="44" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+      <h3 id="emptyTitle">还没有书签</h3>
+      <p id="emptyDesc">你的浏览器书签会自动同步到这里</p>
+      <button class="btn btn-primary" id="emptySyncBtn">立即同步</button>
+    </div>
+  </main>
+
+  <!-- Detail Panel -->
+  <div class="detail-overlay" id="detailOverlay" style="display:none"></div>
+  <div class="detail-panel" id="detailPanel" style="display:none">
+    <button class="detail-close" id="detailClose">&times;</button>
+    <div class="detail-content" id="detailContent"></div>
+  </div>
+
+  <!-- API Settings Modal -->
+  <div class="modal-overlay" id="settingsOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>API 设置</h2>
+        <button class="modal-close" id="settingsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-provider="deepseek">DeepSeek</button>
+          <button class="settings-tab" data-provider="qwen">通义千问</button>
+          <button class="settings-tab" data-provider="doubao">豆包</button>
+          <button class="settings-tab" data-provider="custom" id="customTab">自定义</button>
+        </div>
+        <div class="settings-panel" id="panelDeepseek">
+          <label>API Key <input type="password" id="dsKey" placeholder="sk-..."></label>
+          <label>Endpoint <input type="text" id="dsEndpoint" value="https://api.deepseek.com/v1/chat/completions"></label>
+          <label>Chat Model <input type="text" id="dsModel" value="deepseek-chat"></label>
+          <p style="font-size:11px;color:var(--text-tertiary)">DeepSeek 不支持视觉模型</p>
+        </div>
+        <div class="settings-panel" id="panelQwen" style="display:none">
+          <label>API Key <input type="password" id="qwenKey" placeholder="sk-..."></label>
+          <label>Endpoint <input type="text" id="qwenEndpoint" value="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"></label>
+          <label>Chat Model <input type="text" id="qwenModel" value="qwen-turbo"></label>
+          <label>Vision Model <input type="text" id="qwenVisionModel" value="qwen-vl-plus"></label>
+        </div>
+        <div class="settings-panel" id="panelDoubao" style="display:none">
+          <label>API Key <input type="password" id="doubaoKey" placeholder="..."></label>
+          <label>Endpoint <input type="text" id="doubaoEndpoint" value="https://ark.cn-beijing.volces.com/api/v3/chat/completions"></label>
+          <label>Chat Model <input type="text" id="doubaoModel" value="doubao-pro-32k"></label>
+          <label>Vision Model <input type="text" id="doubaoVisionModel" value="doubao-1-5-vision-pro-32k"></label>
+        </div>
+        <div class="settings-panel" id="panelCustom" style="display:none">
+          <label>Provider 名称 <input type="text" id="customName" placeholder="如：Groq / OpenRouter / Ollama"></label>
+          <label>API Key <input type="password" id="customKey" placeholder="..."></label>
+          <label>Endpoint <input type="text" id="customEndpoint" placeholder="https://api.groq.com/openai/v1/chat/completions"></label>
+          <label>Chat Model <input type="text" id="customModel" placeholder="llama-3.3-70b-versatile"></label>
+          <label>Vision Model（可选）<input type="text" id="customVisionModel" placeholder="llama-3.2-90b-vision-preview"></label>
+        </div>
+        <div class="settings-section">
+          <h3>任务模型路由</h3>
+          <div class="settings-row">
+            <label>默认聊天</label>
+            <select id="chatProvider">
+              <option value="deepseek">DeepSeek</option>
+              <option value="qwen">通义千问</option>
+              <option value="doubao">豆包</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label>图片理解</label>
+            <select id="visionProvider">
+              <option value="qwen">通义千问 VL</option>
+              <option value="doubao">豆包 Vision</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label>书签分析</label>
+            <select id="analysisProvider">
+              <option value="deepseek">DeepSeek</option>
+              <option value="qwen">通义千问</option>
+              <option value="doubao">豆包</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-note">API Key 仅保存在浏览器本地，不会上传到任何第三方。</div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="settingsCancel">取消</button>
+          <button class="btn btn-primary" id="settingsSave">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" style="display:none">
+    <span class="toast-msg" id="toastMsg"></span>
+    <div class="toast-bar" id="toastBar"></div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- AI Chat FAB                                                       -->
+  <!-- ================================================================ -->
+  <button class="chat-fab" id="chatFab" title="AI 助理" aria-label="打开 AI 助理">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <!-- ================================================================ -->
+  <!-- AI Chat Floating Window                                           -->
+  <!-- ================================================================ -->
+  <div class="chat-window" id="chatWindow">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <svg width="18" height="18" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.8"/><path d="M9 14L13 18l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="chat-title">AI 助理</span>
+      </div>
+      <div class="chat-header-right">
+        <select class="chat-model-select">
+          <option value="deepseek">DeepSeek</option>
+          <option value="qwen">千问</option>
+          <option value="doubao">豆包</option>
+        </select>
+        <button class="chat-new" title="新对话">+</button>
+        <button class="chat-minimize" title="最小化">_</button>
+        <button class="chat-close" title="关闭">&times;</button>
+      </div>
+    </div>
+
+    <div class="chat-body">
+      <div class="chat-sidebar">
+        <div class="chat-conv-list"></div>
+      </div>
+      <div class="chat-main">
+        <div class="chat-messages"></div>
+        <div class="chat-input-area">
+          <button class="chat-image-btn" title="上传图片">📎</button>
+          <textarea class="chat-input" placeholder="问我关于 Markbase 的任何问题...&#10;也可以粘贴图片" rows="1"></textarea>
+          <button class="chat-send" title="发送">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="llm.js"></script>
+  <script src="chat-manager.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

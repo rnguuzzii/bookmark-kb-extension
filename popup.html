@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-header">
+    <span class="popup-logo">
+      <svg width="20" height="20" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.8"/><path d="M9 14 L13 18 L19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Markbase
+    </span>
+    <div class="popup-header-actions">
+      <button class="popup-icon-btn" id="popupSyncBtn" title="同步">&#8635;</button>
+      <a class="popup-icon-btn" id="popupDashboardBtn" title="打开面板" href="dashboard.html" target="_blank">&#8599;</a>
+    </div>
+  </div>
+
+  <div class="popup-search">
+    <input type="text" id="popupSearch" placeholder="搜索书签..." autocomplete="off">
+  </div>
+
+  <div class="popup-list" id="popupList"></div>
+  <div class="popup-empty" id="popupEmpty" style="display:none">
+    <p>暂无书签</p>
+    <span>点击同步加载浏览器收藏</span>
+  </div>
+
+  <div class="popup-footer">
+    <span class="popup-stat" id="popupStat"></span>
+    <button class="popup-ai-btn" id="popupAiBtn">AI 分析未处理</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
