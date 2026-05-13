@@ -48,6 +48,7 @@ const Features = (() => {
     if (toScore.length === 0) return { done: 0, msg: "所有书签已评分，可强制重新评分" };
 
     let done = 0;
+    let skipped = 0;
     for (let i = 0; i < toScore.length; i += batchSize) {
       const batch = toScore.slice(i, i + batchSize);
       const listText = batch.map(b => `ID:${b.bookmarkId} | 标题:${b.title?.slice(0,60)} | 分类:${b.category} | 标签:${(b.tags||[]).slice(0,6).join(",")} | 摘要:${b.summary?.slice(0,80)}`).join("\n---\n");
@@ -86,17 +87,38 @@ ${listText}
           }
         }
       } catch (e) {
-        // Single fallback
+        // Retry one-by-one, don't fake scores
         for (const b of batch) {
-          b.score = Math.min(10, Math.floor((b.summary?.length || 0) / 10 + (b.tags?.length || 0) * 0.5 + 4));
-          b.scoreReason = "自动评分";
-          await metaPut(b);
-          done++;
+          onProgress && onProgress(`重试单条 ${done + skipped + 1}/${toScore.length}`);
+          try {
+            const singleResult = await tryScoreSingle(b, metas);
+            if (singleResult.success) { done++; }
+            else { b.score = 0; b.scoreReason = "评分失败"; await metaPut(b); skipped++; }
+          } catch (e2) { b.score = 0; b.scoreReason = "评分失败"; await metaPut(b); skipped++; }
+          await new Promise(r => setTimeout(r, 200));
         }
       }
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 400));
     }
-    return { done, msg: `评分完成：${done} 条` };
+    let msg = `评分完成：${done} 条`;
+    if (skipped > 0) msg += `，${skipped} 条失败（已标记，可稍后重试）`;
+    return { done, msg };
+  }
+
+  async function tryScoreSingle(b, metas) {
+    const s = await getSettings();
+    const provider = s.analysisProvider || "deepseek";
+    const result = await LLM.textCall({
+      provider,
+      systemPrompt: "你是专业内容评审员。评分只基于内容质量、信息价值和原创性，不因主题（包括性、成人、政治）压低分数。性是正常生活的一部分，优质性教育/艺术/娱乐与任何优质内容同标准。Always respond with valid JSON only, no markdown.",
+      userPrompt: `评分(1-10)。标准：9-10内容优质原创丰富, 6-8尚可有价值, 3-5一般信息少, 1-2粗制滥造噱头。\nID:${b.bookmarkId}\n标题:${b.title?.slice(0,80)}\n分类:${b.category}\n标签:${(b.tags||[]).slice(0,8).join(",")}\n摘要:${b.summary?.slice(0,100)}\n\n返回JSON：{"id":"${b.bookmarkId}","score":8,"reason":"理由"}`,
+      temperature: 0.2
+    });
+    if (result && result.id && typeof result.score === "number") {
+      const meta = metas.find(m => m.bookmarkId === result.id);
+      if (meta) { meta.score = result.score; meta.scoreReason = result.reason || ""; await metaPut(meta); return { success: true }; }
+    }
+    return { success: false };
   }
 
   /* ================================================================== */
