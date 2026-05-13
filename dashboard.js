@@ -143,7 +143,11 @@
         category: m?.category || "",
         tags: m?.tags || [],
         summary: m?.summary || "",
-        notes: m?.notes || ""
+        notes: m?.notes || "",
+        score: m?.score || 0,
+        scoreReason: m?.scoreReason || "",
+        smartFolder: m?.smartFolder || [],
+        status: m?.status || "unread"
       };
     });
   }
