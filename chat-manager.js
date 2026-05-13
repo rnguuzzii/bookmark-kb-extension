@@ -76,9 +76,28 @@ const ChatManager = (() => {
     return new Promise(r => { tx.oncomplete = r; });
   }
 
-  /* ---------- System Context (dynamic) ---------- */
+  /* ---------- System Context (dynamic, with current UI state) ---------- */
   async function getSystemContext() {
-    return LLM.buildDynamicContext();
+    // Collect current UI state if dashboard is open
+    let uiState = {};
+    try {
+      const catEl = document.querySelector(".category-item.active");
+      const tagEl = document.querySelector(".tag-item.active");
+      const searchEl = document.getElementById("searchInput");
+      uiState.activeCategory = catEl ? catEl.dataset.category : "all";
+      uiState.activeTag = tagEl ? tagEl.dataset.tag : null;
+      uiState.searchQuery = searchEl ? searchEl.value.trim() : "";
+
+      // Grab visible bookmark cards from the DOM
+      const cards = document.querySelectorAll(".bm-card");
+      const visible = [];
+      cards.forEach(c => {
+        const title = c.querySelector(".bm-title a")?.textContent?.trim();
+        if (title) visible.push({ title, url: "", category: "", tags: [], summary: "" });
+      });
+      uiState.visibleBookmarks = visible.slice(0, 15);
+    } catch (e) { /* ignore */ }
+    return LLM.buildDynamicContext(uiState);
   }
 
   /* ---------- UI State ---------- */

@@ -54,9 +54,8 @@ const LLM = (() => {
   }
 
   /* ---------- Dynamic system context ---------- */
-  async function buildDynamicContext() {
+  async function buildDynamicContext(uiState = {}) {
     await loadSettings();
-    // Read current metas and bookmarks from the shared IndexedDB
     let metas = [];
     let bookmarkCount = 0;
     try {
@@ -81,40 +80,58 @@ const LLM = (() => {
       if (m.category && m.category !== "未分类") catMap[m.category] = (catMap[m.category] || 0) + 1;
       if (m.tags) for (const t of m.tags) tagMap[t] = (tagMap[t] || 0) + 1;
     }
-    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([n, c]) => `${n}(${c})`).join("、");
-    const topTags = Object.entries(tagMap).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([n, c]) => `${n}(${c})`).join("、");
+    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([n, c]) => `${n}(${c})`).join("、");
+    const topTags = Object.entries(tagMap).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([n, c]) => `${n}(${c})`).join("、");
 
-    return `你是 Markbase 的 AI 助理。Markbase 是一款 Chrome 浏览器书签管理扩展。
+    // Build current view context
+    let currentView = "";
+    if (uiState.activeCategory && uiState.activeCategory !== "all") {
+      currentView += `用户当前筛选分类：${uiState.activeCategory}\n`;
+    }
+    if (uiState.activeTag) {
+      currentView += `用户当前筛选标签：${uiState.activeTag}\n`;
+    }
+    if (uiState.searchQuery) {
+      currentView += `用户当前搜索：${uiState.searchQuery}\n`;
+    }
+
+    // Include visible bookmarks (up to 15) with full details
+    if (uiState.visibleBookmarks && uiState.visibleBookmarks.length > 0) {
+      currentView += "\n当前可见书签（部分）：\n";
+      for (const b of uiState.visibleBookmarks.slice(0, 15)) {
+        currentView += `- [${escCtx(b.title)}](${b.url}) | 分类:${b.category || "无"} | 标签:${(b.tags || []).join(",") || "无"} | 摘要:${b.summary || "无"}\n`;
+      }
+    }
+
+    return `你是 Markbase 的 AI 助理。Markbase 是 Chrome 书签管理扩展。
 
 ## 当前用户数据
-- 浏览器书签总数：${bookmarkCount} 条
-- 已 AI 分析：${tagged} 条
+- 书签总数：${bookmarkCount} 条 | 已分析：${tagged} 条
 - 已有分类：${topCats || "无"}
-- 常用标签：${topTags || "无"}
+- 全量标签：${topTags || "无"}
 
-## Markbase 核心能力
+## 当前视图
+${currentView || "用户正在浏览全部书签"}
+
+## Markbase 能力
 - 自动同步浏览器书签（chrome.bookmarks API）
-- 数据存储在本地 IndexedDB（meta store: bookmarkId, url, title, summary, category, tags, notes, addedAt）
-- AI 自动摘要、分类、打标签
-- 支持文本模型：DeepSeek、通义千问、豆包、自定义 OpenAI 兼容 API
-- 支持视觉模型：通义千问 VL、豆包 Vision、自定义（DeepSeek 不支持视觉）
+- AI 自动摘要、分类、打标签（15 个标签 per 书签）
+- IndexedDB 存储（meta: bookmarkId, url, title, summary, category, tags, notes, addedAt）
+- 支持 DeepSeek/千问/豆包/自定义 OpenAI 兼容 API
+- 千问 VL / 豆包 Vision 图片识别
+- 悬浮窗支持图片粘贴、流式对话
 
-## 用户界面
-- 左侧边栏：搜索框（Ctrl+K）、分类列表、标签云、操作按钮
-- 主区域：书签卡片网格，支持搜索/筛选/排序
-- 右上角「AI 批处理」遍历全部未分析书签
-- 右下角蓝色 AI 悬浮窗（当前对话）
-- 书签详情面板
+## 界面操作
+- 左侧分类/标签点击筛选 | Ctrl+K 搜索 | 「AI 批处理」按钮 | 「深度重新分析」按钮
+- 右下角蓝色 FAB 打开本对话框
 
-## 常见问题解答
-- 看不到书签：点左下角「同步书签」
-- AI 分析失败：检查 API 设置中 Key 和模型名是否正确，确认视觉模型字段已填写
-- 图片识别失败：确认在 API 设置中为通义千问/豆包填写了 Vision Model 字段
-- 导入书签：浏览器书签自动同步，无需手动导入
-- 自定义 API：在 API 设置 → 自定义 标签页填入任意 OpenAI 兼容接口
-
-请用中文回复。要简洁实用，直接给出操作步骤。回答时可以引用具体的分类名和标签名。`;
+## 回答规则
+- 用户问你书签相关问题时，引用上面已有的分类名和标签名
+- 如果用户当前视图有筛选，优先回答当前视图内的书签
+- 用中文回复，简洁直接`;
   }
+
+  function escCtx(s) { return (s || "").replace(/[\\$'"]/g, "").slice(0, 200); }
 
   function flattenTree(node) {
     const items = [];
