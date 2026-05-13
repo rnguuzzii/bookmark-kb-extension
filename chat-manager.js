@@ -76,27 +76,58 @@ const ChatManager = (() => {
     return new Promise(r => { tx.oncomplete = r; });
   }
 
-  /* ---------- System Context (dynamic, with current UI state) ---------- */
+  /* ---------- System Context (reads REAL data from IndexedDB) ---------- */
   async function getSystemContext() {
-    // Collect current UI state if dashboard is open
     let uiState = {};
     try {
+      // Read current DOM filter state
       const catEl = document.querySelector(".category-item.active");
       const tagEl = document.querySelector(".tag-item.active");
       const searchEl = document.getElementById("searchInput");
+      const sortEl = document.getElementById("sortSelect");
       uiState.activeCategory = catEl ? catEl.dataset.category : "all";
       uiState.activeTag = tagEl ? tagEl.dataset.tag : null;
       uiState.searchQuery = searchEl ? searchEl.value.trim() : "";
 
-      // Grab visible bookmark cards from the DOM
-      const cards = document.querySelectorAll(".bm-card");
-      const visible = [];
-      cards.forEach(c => {
-        const title = c.querySelector(".bm-title a")?.textContent?.trim();
-        if (title) visible.push({ title, url: "", category: "", tags: [], summary: "" });
+      // Read REAL bookmark data from IndexedDB (full tags, categories, summaries)
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("markbase_ext", 2);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
       });
-      uiState.visibleBookmarks = visible.slice(0, 15);
-    } catch (e) { /* ignore */ }
+      const metas = await new Promise((resolve) => {
+        const tx = db.transaction("meta", "readonly");
+        const r = tx.objectStore("meta").getAll();
+        r.onsuccess = () => resolve(r.result);
+      });
+
+      // Filter to match current view
+      let visible = metas;
+      if (uiState.activeCategory && uiState.activeCategory !== "all") {
+        visible = visible.filter(m => m.category === uiState.activeCategory || (uiState.activeCategory === "uncategorized" && (!m.category || m.category === "未分类")));
+      }
+      if (uiState.activeTag) {
+        visible = visible.filter(m => m.tags && m.tags.includes(uiState.activeTag));
+      }
+      if (uiState.searchQuery) {
+        const q = uiState.searchQuery.toLowerCase();
+        visible = visible.filter(m =>
+          (m.title && m.title.toLowerCase().includes(q)) ||
+          (m.url && m.url.toLowerCase().includes(q)) ||
+          (m.summary && m.summary.toLowerCase().includes(q)) ||
+          (m.tags && m.tags.some(t => t.toLowerCase().includes(q))) ||
+          (m.category && m.category.toLowerCase().includes(q))
+        );
+      }
+      uiState.visibleCount = visible.length;
+      uiState.visibleBookmarks = visible.slice(0, 20).map(m => ({
+        title: m.title,
+        url: m.url,
+        category: m.category,
+        tags: m.tags,
+        summary: m.summary
+      }));
+    } catch (e) { /* ignore, will fall back to basic context */ }
     return LLM.buildDynamicContext(uiState);
   }
 
