@@ -398,7 +398,7 @@
           category: result.category || "未分类",
           tags: result.tags || [],
           notes: (metas.find(m => m.bookmarkId === b.id)?.notes) || "",
-          addedAt: b.addedAt
+          addedAt: Date.now() // bump to end so batch naturally advances
         });
         done++;
       } catch (err) {
@@ -420,9 +420,12 @@
   $("#reanalyzeAllBtn").addEventListener("click", runReanalyzeAll);
 
   async function runReanalyzeAll() {
-    const list = mergedList().filter(b => b.summary); // only already-analyzed
-    if (list.length === 0) { showToast("没有已分析的书签可重新分析"); return; }
-    if (!confirm(`已分析 ${list.length} 条。用深度管线重新抓取页面内容 + 图片识别，全部重新分类。继续？`)) return;
+    const all = mergedList().filter(b => b.summary).sort((a, b) => a.addedAt - b.addedAt); // oldest first, each batch moves forward
+    if (all.length === 0) { showToast("没有已分析的书签可重新分析"); return; }
+
+    const batchSize = parseInt(document.getElementById("batchCount")?.value || "20", 10);
+    const list = all.slice(0, batchSize);
+    if (!confirm(`共 ${all.length} 条已分析。本次取前 ${list.length} 条深度重新分析（页面抓取 + 图片识别）。继续？`)) return;
 
     const btn = $("#reanalyzeAllBtn");
     btn.disabled = true;
@@ -443,7 +446,7 @@
           category: result.category || "未分类",
           tags: result.tags || [],
           notes: (metas.find(m => m.bookmarkId === b.id)?.notes) || "",
-          addedAt: b.addedAt
+          addedAt: Date.now() // bump to end so batch naturally advances
         });
         done++;
       } catch (err) {
@@ -454,11 +457,14 @@
       await new Promise(r => setTimeout(r, 300));
     }
 
+    // Remove processed from the front of the list in UI — they stay in data
+    all.splice(0, done);
+
     await refresh();
     render();
     btn.textContent = "深度重新分析";
     btn.disabled = false;
-    showToast(`完成！已重新分析 ${done}/${list.length} 条`);
+    showToast(`完成！已重新分析 ${done} 条，剩余约 ${Math.max(0, all.length)} 条`);
   }
 
   /* ================================================================== */

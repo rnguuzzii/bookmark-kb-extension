@@ -125,19 +125,25 @@ const LLM = (() => {
 
   /* ---------- Image compression ---------- */
   async function compressImage(dataUrl, maxDim = 1024, quality = 0.85) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
+      const timer = setTimeout(() => { img.src = ""; reject(new Error("image load timeout")); }, 7000);
       img.onload = () => {
-        let w = img.width, h = img.height;
-        if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
-        const ratio = Math.min(maxDim / w, maxDim / h);
-        w = Math.round(w * ratio); h = Math.round(h * ratio);
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        clearTimeout(timer);
+        try {
+          let w = img.width, h = img.height;
+          if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
+          const ratio = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * ratio); h = Math.round(h * ratio);
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (e) { resolve(dataUrl); } // tainted canvas fallback
       };
+      img.onerror = () => { clearTimeout(timer); reject(new Error("image load failed")); };
+      img.crossOrigin = "anonymous";
       img.src = dataUrl;
     });
   }
@@ -195,7 +201,10 @@ const LLM = (() => {
     const cfg = getVisionConfig(provider);
     if (!cfg.key) { onError && onError(new Error(`请先设置 ${getProviderDisplayName(provider)} 的 API Key 和 Vision Model`)); return; }
 
-    const compressed = await Promise.all(images.map(img => compressImage(img)));
+    const compressed = (await Promise.allSettled(images.map(img => compressImage(img))))
+      .filter(r => r.status === "fulfilled" && r.value)
+      .map(r => r.value);
+    if (compressed.length === 0) { onError && onError(new Error("图片加载失败，已跳过")); return; }
     const userContent = [];
     for (const img of compressed) userContent.push({ type: "image_url", image_url: { url: img } });
     if (text) userContent.push({ type: "text", text });
@@ -209,17 +218,25 @@ const LLM = (() => {
       temperature: 0.3, max_tokens: 1500
     });
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
     try {
       const res = await fetch(cfg.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cfg.key}` },
-        body
+        body,
+        signal: controller.signal
       });
+      clearTimeout(timer);
       if (!res.ok) { const txt = await res.text(); throw new Error(`Vision API ${res.status}: ${txt.slice(0, 300)}`); }
       const data = await res.json();
       const content = data.choices?.[0]?.message?.content || "";
       onDone && onDone(content);
-    } catch (err) { onError && onError(err); }
+    } catch (err) {
+      clearTimeout(timer);
+      onError && onError(err.name === "AbortError" ? new Error("视觉分析超时，已跳过") : err);
+    }
   }
 
   /* ---------- Text call (non-streaming, JSON output) ---------- */
@@ -360,22 +377,24 @@ ${page.text || `标题：${title}`}
       userPrompt: textPrompt
     });
 
-    // Step 3: vision analysis (if images found and vision available)
+    // Step 3: vision analysis (if images found, with hard 20s timeout per bookmark)
     let visionInsight = "";
     if (page.images.length > 0 && supportsVision(visionProvider)) {
       try {
         onProgress && onProgress(`图片分析 (${page.images.length} 张)...`);
         const imgs = page.images.slice(0, 2).map(i => i.url);
-        // Use vision to get additional context
-        await new Promise((resolve) => {
+        // Race vision against a hard deadline
+        const visionDone = new Promise((resolve) => {
           visionChat({
             provider: visionProvider,
             text: `这个网页的标题是"${title}"，URL 是 ${url}。请根据这张图片补充理解：这个网页主要关于什么？用一句话中文描述（20字内）。只返回描述，不要多余内容。`,
             images: imgs,
             onDone: (reply) => { visionInsight = reply.trim(); resolve(); },
-            onError: () => { resolve(); }
+            onError: () => resolve()
           });
         });
+        const deadline = new Promise(r => setTimeout(() => { console.log("Vision timeout, skipping"); r(); }, 20000));
+        await Promise.race([visionDone, deadline]);
       } catch (e) { /* vision failed, skip */ }
     }
 
