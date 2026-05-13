@@ -58,9 +58,33 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 2v6h-6M3 22v-6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="2" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="3" cy="22" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
         <span>同步书签</span>
       </button>
+      <button class="sidebar-btn" id="scoreBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span>AI 书签评分</span>
+      </button>
+      <button class="sidebar-btn" id="smartFolderBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 8h18" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>智能文件夹</span>
+      </button>
+      <button class="sidebar-btn" id="weeklyBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="1.5"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>书签周报</span>
+      </button>
+      <button class="sidebar-btn" id="randomBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><path d="M8 12l3-3 2 6 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>随机发现</span>
+      </button>
+      <button class="sidebar-btn" id="graphBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="17" r="3" stroke="currentColor" stroke-width="1.5"/><line x1="9.5" y1="9.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>标签关系图</span>
+      </button>
       <button class="sidebar-btn" id="exportBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>导出 JSON</span>
+      </button>
+      <button class="sidebar-btn" id="exportMdBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>导出 Markdown</span>
       </button>
       <button class="sidebar-btn" id="settingsBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -75,6 +99,8 @@
       <div class="toolbar-left">
         <span class="toolbar-title" id="toolbarTitle">全部书签</span>
         <span class="toolbar-count" id="toolbarCount">0 项</span>
+        <button class="theme-toggle" id="themeToggle" title="切换浅色/深色主题">☀</button>
+        <button class="view-toggle" id="viewToggle" title="切换卡片/列表视图">⬜</button>
       </div>
       <div class="toolbar-right">
         <select class="sort-select" id="sortSelect">
@@ -90,6 +116,34 @@
     </div>
 
     <div class="bookmark-grid" id="bookmarkGrid"></div>
+
+    <!-- Tag relationship graph -->
+    <div class="graph-panel" id="graphPanel" style="display:none">
+      <div class="graph-header">
+        <h3>标签关系图</h3>
+        <button class="graph-close" id="graphClose">&times;</button>
+      </div>
+      <canvas id="graphCanvas"></canvas>
+    </div>
+
+    <!-- Weekly report panel -->
+    <div class="report-panel" id="reportPanel" style="display:none">
+      <div class="graph-header">
+        <h3>书签周报</h3>
+        <button class="graph-close" id="reportClose">&times;</button>
+      </div>
+      <div class="report-content" id="reportContent"></div>
+    </div>
+
+    <!-- Random discovery panel -->
+    <div class="report-panel" id="randomPanel" style="display:none">
+      <div class="graph-header">
+        <h3>随机发现</h3>
+        <button class="graph-close" id="randomClose">&times;</button>
+      </div>
+      <div class="report-content" id="randomContent"></div>
+    </div>
+
     <div class="empty-state" id="emptyState" style="display:none">
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
         <rect x="12" y="8" width="40" height="48" rx="6" stroke="currentColor" stroke-width="1.5"/>
@@ -239,6 +293,7 @@
   </div>
 
   <script src="llm.js"></script>
+  <script src="features.js"></script>
   <script src="chat-manager.js"></script>
   <script src="dashboard.js"></script>
 </body>

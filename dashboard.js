@@ -235,6 +235,11 @@
     const summaryHTML = b.summary ? `<p class="bm-summary">${esc(b.summary)}</p>` : "";
     const catHTML = b.category && b.category !== "未分类" ? `<span class="bm-category">${esc(b.category)}</span>` : "";
     const aiBadge = b.summary ? '<span class="ai-badge">AI</span>' : "";
+    const statusBadge = b.status === "read"
+      ? '<span class="bm-status bm-status-read" data-action="status" data-id="' + b.id + '" data-status="read">✓ 已读</span>'
+      : '<span class="bm-status bm-status-unread" data-action="status" data-id="' + b.id + '" data-status="unread">○ 待读</span>';
+    const scoreBadge = b.score ? `<span class="bm-score">⭐ ${b.score}/10 ${b.scoreReason||""}</span>` : "";
+    const sfBadge = b.smartFolder?.length ? b.smartFolder.map(f => `<span class="bm-smart-folder">📁 ${esc(f)}</span>`).join("") : "";
     const domain = (() => { try { return new URL(b.url).hostname; } catch { return ""; } })();
 
     return `
@@ -247,7 +252,7 @@
         </div>
       </div>
       ${summaryHTML}
-      <div class="bm-meta">${aiBadge}${catHTML}<span>${timeAgo(b.addedAt)}</span></div>
+      <div class="bm-meta">${aiBadge}${statusBadge} ${catHTML} ${scoreBadge} <span>${timeAgo(b.addedAt)}</span>${sfBadge}</div>
       <div class="bm-tags">${tagsHTML}</div>
       <div class="bm-actions">
         <button class="bm-action-btn" data-action="view" data-id="${b.id}">详情</button>
@@ -266,6 +271,7 @@
     const id = btn.dataset.id;
     if (btn.dataset.action === "view") openDetail(id);
     if (btn.dataset.action === "ai") await runSingleAI(id);
+    if (btn.dataset.action === "status") { await toggleStatus(id, btn.dataset.status); }
     if (btn.dataset.action === "delete") {
       if (confirm("确认删除这个书签？（会从浏览器中删除）")) {
         await chrome.bookmarks.remove(id);
@@ -672,6 +678,165 @@
     if (days < 30) return `${days} 天前`;
     return new Date(ts).toLocaleDateString("zh-CN");
   }
+
+  /* ================================================================== */
+  /* New Feature Handlers                                                 */
+  /* ================================================================== */
+
+  async function toggleStatus(id, current) {
+    const meta = metas.find(m => m.bookmarkId === id);
+    if (meta) {
+      meta.status = current === "unread" ? "read" : "unread";
+      await metaPut(meta);
+      await refresh();
+      render();
+    }
+  }
+
+  // Theme toggle
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const html = document.documentElement;
+    const isLight = html.dataset.theme === "light";
+    html.dataset.theme = isLight ? "" : "light";
+    document.getElementById("themeToggle").textContent = isLight ? "☀" : "🌙";
+    localStorage.setItem("markbase-theme", isLight ? "dark" : "light");
+  });
+  // Restore theme
+  if (localStorage.getItem("markbase-theme") === "light") {
+    document.documentElement.dataset.theme = "light";
+    document.getElementById("themeToggle").textContent = "🌙";
+  }
+
+  // View toggle
+  let isListView = localStorage.getItem("markbase-view") === "list";
+  if (isListView) { bookmarkGrid.classList.add("list-view"); document.getElementById("viewToggle").textContent = "⬜"; }
+  document.getElementById("viewToggle").addEventListener("click", () => {
+    isListView = !isListView;
+    bookmarkGrid.classList.toggle("list-view", isListView);
+    document.getElementById("viewToggle").textContent = isListView ? "⬜" : "☰";
+    localStorage.setItem("markbase-view", isListView ? "list" : "card");
+  });
+
+  // Score bookmarks
+  document.getElementById("scoreBtn").addEventListener("click", async () => {
+    showToast("AI 书签评分中...");
+    const result = await Features.scoreBookmarks(
+      (msg) => showToast(msg, true)
+    );
+    await refresh();
+    render();
+    showToast(result.msg);
+  });
+
+  // Smart folders
+  document.getElementById("smartFolderBtn").addEventListener("click", async () => {
+    showToast("AI 智能分组中...");
+    const result = await Features.smartFolders(
+      (msg) => showToast(msg, true)
+    );
+    await refresh();
+    render();
+    showToast(result.msg);
+  });
+
+  // Weekly report
+  document.getElementById("weeklyBtn").addEventListener("click", async () => {
+    document.getElementById("reportPanel").style.display = "";
+    document.getElementById("graphPanel").style.display = "none";
+    document.getElementById("randomPanel").style.display = "none";
+    emptyState.style.display = "none";
+    bookmarkGrid.style.display = "none";
+
+    const content = document.getElementById("reportContent");
+    content.innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-tertiary)">生成周报中...</p>`;
+    const report = await Features.weeklyReport((msg) => showToast(msg));
+
+    const catChips = report.topCats?.map(c => `<span class="bm-tag">${c}</span>`).join(" ") || "";
+    const tagChips = report.topTags?.map(t => `<span class="bm-tag">${t}</span>`).join(" ") || "";
+
+    content.innerHTML = `
+      <h2>📊 书签周报</h2>
+      <p style="color:var(--text-secondary)">${report.summary}</p>
+      <div class="stat-grid">
+        <div class="stat-card"><strong>${report.newCount}</strong><span>本周新增</span></div>
+        <div class="stat-card"><strong>${report.unread}</strong><span>待读</span></div>
+        <div class="stat-card"><strong>${report.avgScore}</strong><span>平均评分</span></div>
+      </div>
+      <h3>活跃分类</h3><p>${catChips}</p>
+      <h3>热门标签</h3><p>${tagChips}</p>
+      ${report.best ? `<h3>🏆 高分推荐</h3><div class="pick-card"><h4>${esc(report.best.title)}</h4><span class="bm-score">⭐ ${report.best.score}/10</span></div>` : ""}
+      ${report.oldUnread ? `<h3>📖 还未读的老朋友</h3><div class="pick-card"><h4>${esc(report.oldUnread.title)}</h4><span>${Features.timeAgo(report.oldUnread.addedAt)}收藏的，该读啦</span></div>` : ""}
+    `;
+  });
+
+  // Random discovery
+  document.getElementById("randomBtn").addEventListener("click", async () => {
+    const metas = await Features.getMetas();
+    const pick = Features.randomDiscovery(metas);
+    if (!pick) { showToast("暂无已分析书签"); return; }
+
+    document.getElementById("randomPanel").style.display = "";
+    document.getElementById("reportPanel").style.display = "none";
+    document.getElementById("graphPanel").style.display = "none";
+    emptyState.style.display = "none";
+    bookmarkGrid.style.display = "none";
+
+    const domain = (() => { try { return new URL(pick.url).hostname; } catch { return ""; } })();
+    document.getElementById("randomContent").innerHTML = `
+      <h2>🎲 随机发现</h2>
+      <p style="color:var(--text-secondary)">你收藏于 <strong>${Features.timeAgo(pick.addedAt)}</strong>，该再看看了。</p>
+      <div class="pick-card">
+        <h4><a href="${esc(pick.url)}" target="_blank" rel="noopener">${esc(pick.title)}</a></h4>
+        <p style="color:var(--text-secondary)">${esc(pick.summary || "")}</p>
+        <div class="pick-meta">
+          <span>📂 ${esc(pick.category || "未分类")}</span>
+          ${pick.score ? `<span>⭐ ${pick.score}/10</span>` : ""}
+          ${pick.smartFolder?.length ? `<span>📁 ${pick.smartFolder.join(" / ")}</span>` : ""}
+        </div>
+        <div style="margin-top:8px">${(pick.tags||[]).map(t => `<span class="bm-tag">${esc(t)}</span>`).join(" ")}</div>
+      </div>
+    `;
+  });
+
+  // Graph
+  document.getElementById("graphBtn").addEventListener("click", async () => {
+    document.getElementById("graphPanel").style.display = "";
+    document.getElementById("reportPanel").style.display = "none";
+    document.getElementById("randomPanel").style.display = "none";
+    emptyState.style.display = "none";
+    bookmarkGrid.style.display = "none";
+    const metas = await Features.getMetas();
+    Features.renderGraph(document.getElementById("graphCanvas"), metas);
+  });
+
+  // Export Markdown
+  document.getElementById("exportMdBtn").addEventListener("click", async () => {
+    const metas = await Features.getMetas();
+    const md = Features.exportMarkdown(metas);
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `markbase-knowledge-${new Date().toISOString().slice(0,10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`已导出 ${metas.length} 条书签到 Markdown`);
+  });
+
+  // Panel close buttons
+  document.getElementById("graphClose").addEventListener("click", () => { document.getElementById("graphPanel").style.display = "none"; render(); });
+  document.getElementById("reportClose").addEventListener("click", () => { document.getElementById("reportPanel").style.display = "none"; render(); });
+  document.getElementById("randomClose").addEventListener("click", () => { document.getElementById("randomPanel").style.display = "none"; render(); });
+
+  // Restore grid view when needed
+  const origRender = render;
+  render = function() {
+    document.getElementById("graphPanel").style.display = "none";
+    document.getElementById("reportPanel").style.display = "none";
+    document.getElementById("randomPanel").style.display = "none";
+    bookmarkGrid.style.display = "";
+    origRender();
+  };
 
   /* ================================================================== */
   /* Init                                                                */

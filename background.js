@@ -118,6 +118,13 @@ async function fullSync() {
 chrome.runtime.onInstalled.addListener(async () => {
   const result = await fullSync();
   console.log(`[Markbase] Initial sync: ${result.added} new, ${result.total} total`);
+
+  // Right-click context menu
+  chrome.contextMenus.create({
+    id: "markbase-add",
+    title: "添加到 Markbase 并分析",
+    contexts: ["page", "link", "image"]
+  });
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -166,5 +173,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "PUT_META") {
     metaPut(msg.record).then(() => sendResponse({ ok: true }));
     return true;
+  }
+  if (msg.type === "ADD_BOOKMARK") {
+    (async () => {
+      try {
+        const bm = await chrome.bookmarks.create({ title: msg.title, url: msg.url });
+        await metaPut({ bookmarkId: bm.id, url: msg.url, title: msg.title, category: "", tags: [], summary: "", notes: "", addedAt: Date.now() });
+        sendResponse({ ok: true, id: bm.id });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+});
+
+/* ---------- Context Menu ---------- */
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "markbase-add") {
+    const url = info.pageUrl || info.linkUrl || info.srcUrl;
+    const title = tab?.title || url;
+    if (!url) return;
+    try {
+      const bm = await chrome.bookmarks.create({ title, url });
+      await metaPut({ bookmarkId: bm.id, url, title, category: "", tags: [], summary: "", notes: "", addedAt: Date.now() });
+      // Open dashboard to show result
+      chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
+    } catch (e) { console.error("[Markbase] Add failed:", e); }
   }
 });
