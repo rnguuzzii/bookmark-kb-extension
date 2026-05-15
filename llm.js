@@ -423,7 +423,8 @@ ${page.text || `标题：${title}`}
       tags: finalTags,
       hasPageContent: !!page.text,
       hasVision: !!visionInsight,
-      pageImages: page.images.length
+      pageImages: page.images.length,
+      thumbnails: page.images.slice(0, 6).map(i => ({ url: i.url, source: i.source }))
     };
   }
 

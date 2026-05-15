@@ -147,6 +147,7 @@
         score: m?.score || 0,
         scoreReason: m?.scoreReason || "",
         smartFolder: m?.smartFolder || [],
+        thumbnails: m?.thumbnails || [],
         status: m?.status || "unread"
       };
     });
@@ -244,12 +245,16 @@
       : '<span class="bm-status bm-status-unread" data-action="status" data-id="' + b.id + '" data-status="unread">○ 待读</span>';
     const scoreBadge = b.score ? `<span class="bm-score">⭐ ${b.score}/10 ${b.scoreReason||""}</span>` : "";
     const sfBadge = b.smartFolder?.length ? b.smartFolder.map(f => `<span class="bm-smart-folder">📁 ${esc(f)}</span>`).join("") : "";
+    const thumbHTML = b.thumbnails?.length > 0
+      ? `<img class="bm-thumb" src="${esc(b.thumbnails[0].url)}" loading="lazy" onerror="this.style.display='none'" alt="">`
+      : "";
     const domain = (() => { try { return new URL(b.url).hostname; } catch { return ""; } })();
 
     return `
     <article class="bm-card" data-id="${b.id}">
+      ${thumbHTML}
       <div class="bm-card-header">
-        <div class="bm-favicon"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" loading="lazy" onerror="this.style.display='none'"></div>
+        <div class="bm-favicon"><img src="https://logo.clearbit.com/${domain}?size=32" loading="lazy" onerror="this.style.display='none'"></div>
         <div style="flex:1;min-width:0">
           <div class="bm-title"><a href="${esc(b.url)}" target="_blank" rel="noopener" title="${esc(b.title)}">${esc(b.title)}</a></div>
           <div class="bm-url">${esc(domain)}</div>
@@ -319,11 +324,16 @@
     const domain = (() => { try { return new URL(b.url).hostname; } catch { return ""; } })();
     const tagsHTML = (b.tags || []).map(t => `<span class="bm-tag">${esc(t)}</span>`).join(" ");
 
+    const detailThumbs = b.thumbnails?.length
+      ? `<div class="detail-section"><h4>页面缩略图</h4><div class="detail-thumbs">${b.thumbnails.slice(0,6).map(t => `<a href="${esc(t.url)}" target="_blank"><img src="${esc(t.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" title="${esc(t.source)}"></a>`).join("")}</div></div>`
+      : "";
+
     detailContent.innerHTML = `
       <h2>${esc(b.title)}</h2>
       <div class="detail-url"><a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.url)}</a></div>
       ${b.summary ? `<div class="detail-summary">${esc(b.summary)}</div>` : '<div class="detail-summary" style="color:var(--text-tertiary)">暂无 AI 摘要</div>'}
-      <div class="detail-section"><h4>分类</h4><span class="bm-category">${esc(b.category || "未分类")}</span></div>
+      ${detailThumbs}
+      <div class="detail-section"><h4>分类</h4><span class="bm-category">${esc(b.category || "未分类")}</span> ${b.score ? `<span class="bm-score">⭐ ${b.score}/10</span>` : ""}</div>
       <div class="detail-section"><h4>标签</h4><div class="bm-tags">${tagsHTML || '<span style="color:var(--text-tertiary);font-size:13px">无</span>'}</div></div>
       ${b.notes ? `<div class="detail-section"><h4>备注</h4><div class="detail-notes">${esc(b.notes)}</div></div>` : ""}
       <div class="detail-section"><h4>添加时间</h4><span style="font-size:13px;color:var(--text-secondary)">${new Date(b.addedAt).toLocaleString("zh-CN")}</span></div>
@@ -373,7 +383,9 @@
         summary: result.summary || "",
         category: result.category || "未分类",
         tags: result.tags || [],
+        thumbnails: result.thumbnails || [],
         notes: (metas.find(m => m.bookmarkId === id)?.notes) || "",
+        needsAnalysis: false,
         addedAt: b.addedAt
       };
       await metaPut(record);
@@ -407,8 +419,10 @@
           summary: result.summary || "",
           category: result.category || "未分类",
           tags: result.tags || [],
+          thumbnails: result.thumbnails || [],
           notes: (metas.find(m => m.bookmarkId === b.id)?.notes) || "",
-          addedAt: Date.now() // bump to end so batch naturally advances
+          needsAnalysis: false,
+          addedAt: Date.now()
         });
         done++;
       } catch (err) {
@@ -455,8 +469,10 @@
           summary: result.summary || "",
           category: result.category || "未分类",
           tags: result.tags || [],
+          thumbnails: result.thumbnails || [],
           notes: (metas.find(m => m.bookmarkId === b.id)?.notes) || "",
-          addedAt: Date.now() // bump to end so batch naturally advances
+          needsAnalysis: false,
+          addedAt: Date.now()
         });
         done++;
       } catch (err) {
@@ -827,6 +843,16 @@
     Features.renderGraph(document.getElementById("graphCanvas"), metas);
   });
 
+  // Batch thumbnails
+  document.getElementById("thumbBtn").addEventListener("click", async () => {
+    showToast("抓取缩略图中...");
+    const allMetas = await Features.getMetas();
+    const result = await Features.batchFetchThumbnails(allMetas, (msg) => showToast(msg, true));
+    await refresh();
+    render();
+    showToast(result.msg);
+  });
+
   // Export Markdown
   document.getElementById("exportMdBtn").addEventListener("click", async () => {
     const metas = await Features.getMetas();
@@ -868,6 +894,29 @@
 
     // Init chat manager
     ChatManager.init(document.getElementById("chatWindow"));
+
+    // Auto-process new bookmarks that need analysis
+    const needAnalysis = metas.filter(m => m.needsAnalysis);
+    if (needAnalysis.length > 0) {
+      showToast(`检测到 ${needAnalysis.length} 条新书签，自动分析中...`);
+      for (let i = 0; i < needAnalysis.length; i++) {
+        const b = needAnalysis[i];
+        showToast(`自动分析新书签 ${i + 1}/${needAnalysis.length}`, true);
+        try {
+          const result = await LLM.deepAnalyze({
+            url: b.url, title: b.title,
+            onProgress: (msg) => showToast(`${msg} (${i + 1}/${needAnalysis.length})`, true)
+          });
+          b.summary = result.summary; b.category = result.category; b.tags = result.tags;
+          b.thumbnails = result.thumbnails || []; b.needsAnalysis = false;
+          await metaPut(b);
+        } catch (e) { b.needsAnalysis = true; await metaPut(b); continue; }
+        await new Promise(r => setTimeout(r, 500));
+      }
+      await refresh();
+      render();
+      showToast(`自动分析完成`);
+    }
 
     // Hide loader
     setTimeout(() => loader.classList.add("done"), 500);

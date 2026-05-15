@@ -143,8 +143,46 @@ chrome.bookmarks.onCreated.addListener(async (id, bookmark) => {
     tags: [],
     summary: "",
     notes: "",
+    thumbnails: [],
+    needsAnalysis: true,
     addedAt: bookmark.dateAdded || Date.now()
   });
+
+  // Try quick text-only pre-analysis (no page fetch, no images)
+  try {
+    const s = await chrome.storage.local.get("api");
+    const api = s.api || {};
+    const provider = api.analysisProvider || "deepseek";
+    let key, endpoint, model;
+    if (provider === "deepseek") { key = api.dsKey; endpoint = api.dsEndpoint; model = api.dsModel; }
+    else if (provider === "qwen") { key = api.qwenKey; endpoint = api.qwenEndpoint; model = api.qwenModel; }
+    else { key = api.doubaoKey; endpoint = api.doubaoEndpoint; model = api.doubaoModel; }
+    if (key) {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "system", content: "Always respond with valid JSON only, no markdown." },
+            { role: "user", content: `分析这个收藏给出JSON：{"summary":"中文摘要30字","category":"分类","tags":["t1","t2","t3"]}\nURL:${bookmark.url}\n标题:${bookmark.title}` }],
+          temperature: 0.3, max_tokens: 300
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.choices?.[0]?.message?.content || "";
+        const json = raw.replace(/```[^]*?```|```/g,"").trim();
+        try {
+          const r = JSON.parse(json);
+          await metaPut({
+            bookmarkId: id, url: bookmark.url, title: bookmark.title,
+            summary: r.summary || "", category: r.category || "", tags: r.tags || [],
+            notes: "", thumbnails: [], needsAnalysis: true, addedAt: bookmark.dateAdded || Date.now()
+          });
+        } catch(e) { /* JSON parse failed, keep analysis flag */ }
+      }
+    }
+  } catch (e) { /* pre-analysis failed, dashboard will pick up */ }
 });
 
 chrome.bookmarks.onRemoved.addListener(async (id, removeInfo) => {

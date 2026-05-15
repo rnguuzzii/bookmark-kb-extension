@@ -459,9 +459,33 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
     };
   }
 
+  /* ================================================================== */
+  /* 8. Batch fetch thumbnails (lightweight, no LLM)                      */
+  /* ================================================================== */
+  async function batchFetchThumbnails(metas, onProgress) {
+    const needThumbs = metas.filter(m => m.summary && (!m.thumbnails || m.thumbnails.length === 0));
+    if (needThumbs.length === 0) return { done: 0, msg: "所有已分析书签都有缩略图" };
+
+    let done = 0;
+    for (const m of needThumbs) {
+      onProgress && onProgress(`抓取缩略图 ${done + 1}/${needThumbs.length}`);
+      try {
+        const page = await LLM.fetchPageContent(m.url);
+        if (page.images.length > 0) {
+          m.thumbnails = page.images.slice(0, 6).map(i => ({ url: i.url, source: i.source }));
+          await metaPut(m);
+        }
+        done++;
+      } catch (e) { done++; continue; }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return { done, msg: `缩略图已更新：${done} 条` };
+  }
+
   return {
     getMetas, metaPut,
     scoreBookmarks, smartFolders, renderGraph, exportMarkdown,
-    randomDiscovery, dailyPick, weeklyReport, timeAgo
+    randomDiscovery, dailyPick, weeklyReport, timeAgo,
+    batchFetchThumbnails
   };
 })();
