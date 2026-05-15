@@ -620,6 +620,10 @@
     if (visionSel) visionSel.value = s.visionProvider || "qwen";
     if (analysisSel) analysisSel.value = s.analysisProvider || "deepseek";
 
+    // Gist
+    const gt = document.getElementById("gistToken"); if (gt) gt.value = s.gistToken || "";
+    const gi = document.getElementById("gistId"); if (gi) gi.value = s.gistId || "";
+
     // Activate correct tab
     $$(".settings-tab").forEach(t => t.classList.toggle("active", t.dataset.provider === s.provider));
     showSettingsPanel(s.provider);
@@ -664,7 +668,8 @@
       customName: getVal("customName"), customKey: getVal("customKey"), customEndpoint: getVal("customEndpoint"), customModel: getVal("customModel"), customVisionModel: getVal("customVisionModel"),
       chatProvider: chatSel ? chatSel.value : "deepseek",
       visionProvider: visionSel ? visionSel.value : "qwen",
-      analysisProvider: analysisSel ? analysisSel.value : "deepseek"
+      analysisProvider: analysisSel ? analysisSel.value : "deepseek",
+      gistToken: getVal("gistToken"), gistId: getVal("gistId")
     });
     closeSettings();
     ChatManager.refreshModels();
@@ -993,6 +998,54 @@
     await refresh();
     render();
     showToast(result.msg);
+  });
+
+  // Time capsule
+  document.getElementById("capsuleBtn").addEventListener("click", async () => {
+    const allMetas = await Features.getMetas();
+    const html = Features.exportTimeCapsule(allMetas);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `markbase-capsule-${new Date().toISOString().slice(0,10)}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`时间胶囊已生成：${allMetas.length} 条书签`);
+  });
+
+  // Gist backup
+  document.getElementById("gistBackupBtn").addEventListener("click", async () => {
+    const s = await getSettings();
+    if (!s.gistToken) { showToast("请先在 API 设置中填写 GitHub Token"); return; }
+    showToast("备份到 Gist...");
+    try {
+      const allMetas = await Features.getMetas();
+      const result = await Features.backupToGist(allMetas, s.gistToken, s.gistId);
+      // Save gistId for next backup
+      if (result.gistId && result.gistId !== s.gistId) {
+        s.gistId = result.gistId;
+        await saveSettings(s);
+      }
+      showToast(result.msg + (result.url ? " · 已复制链接" : ""));
+    } catch (e) { showToast(`备份失败: ${e.message}`); }
+  });
+
+  // Gist restore
+  document.getElementById("gistRestoreBtn").addEventListener("click", async () => {
+    const s = await getSettings();
+    const gistId = prompt("输入 Gist ID（或在API设置中预填）：", s.gistId || "");
+    if (!gistId || !s.gistToken) { showToast("需要 Gist ID 和 GitHub Token"); return; }
+    showToast("从 Gist 恢复中...");
+    try {
+      const result = await Features.restoreFromGist(gistId, s.gistToken);
+      if (!confirm(`发现 ${result.count} 条书签（备份于 ${result.backupDate}）。\n将覆盖当前数据。继续？`)) return;
+      for (const m of result.metas) {
+        await metaPut(m);
+      }
+      await refresh(); render();
+      showToast(`已恢复 ${result.count} 条书签`);
+    } catch (e) { showToast(`恢复失败: ${e.message}`); }
   });
 
   // Vision curation

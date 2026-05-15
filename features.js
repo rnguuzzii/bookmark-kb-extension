@@ -513,8 +513,152 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
     scoreBookmarks, smartFolders, renderGraph, exportMarkdown,
     randomDiscovery, dailyPick, weeklyReport, timeAgo,
     batchFetchThumbnails, batchVisionCurate,
-    checkLinksHealth
+    checkLinksHealth, exportTimeCapsule, backupToGist, restoreFromGist
   };
+
+  /* ================================================================== */
+  /* 10. Time Capsule — standalone HTML with all data + styles            */
+  /* ================================================================== */
+  function exportTimeCapsule(metas) {
+    const now = new Date().toLocaleString("zh-CN");
+    const total = metas.length;
+    const categorized = metas.filter(m => m.summary).length;
+    const avgScore = (metas.filter(m => m.score).reduce((s,m)=>s+m.score,0) / Math.max(1,metas.filter(m=>m.score).length)).toFixed(1);
+    const topTags = {};
+    metas.forEach(m => (m.tags||[]).forEach(t => { topTags[t] = (topTags[t]||0)+1; }));
+    const top10 = Object.entries(topTags).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+    const cards = metas.map(m => {
+      const domain = (()=>{try{return new URL(m.url).hostname}catch{return m.url}})();
+      const scoreStars = m.score ? '⭐'.repeat(Math.ceil(m.score/2)) + ` ${m.score}/10` : '';
+      const tags = (m.tags||[]).map(t=>`<span class="tag">#${escHtml(t)}</span>`).join(" ");
+      const thumb = m.bestThumb || (m.thumbnails||[])[0]?.url || "";
+      const sf = (m.smartFolder||[]).map(f=>`<span class="sf">📁 ${escHtml(f)}</span>`).join(" ");
+
+      return `
+    <article class="card">
+      ${thumb ? `<div class="card-thumb"><img src="${escHtml(thumb)}" loading="lazy" onerror="this.style.display='none'"></div>` : ""}
+      <div class="card-body">
+        <h3><a href="${escHtml(m.url)}" target="_blank">${escHtml(m.title||"未命名")}</a></h3>
+        ${m.summary ? `<p class="summary">${escHtml(m.summary)}</p>` : ""}
+        <div class="meta">
+          <span class="category">📂 ${escHtml(m.category||"未分类")}</span>
+          ${scoreStars ? `<span class="score">${scoreStars}</span>` : ""}
+          ${sf}
+          <span class="status">${m.status==="read"?"✅已读":"📖待读"}</span>
+        </div>
+        <div class="tags">${tags}</div>
+      </div>
+    </article>`;
+    }).join("\n");
+
+    return `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Markbase 书签时间胶囊</title>
+<style>
+:root{--bg:#0d0d12;--card-bg:rgba(22,22,28,0.6);--text:#f5f5f7;--text2:#a1a1a6;--text3:#6e6e73;--accent:#2997ff;--gold:#e7b84b;--radius:14px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;padding:40px 24px;min-height:100vh}
+.container{max-width:1100px;margin:0 auto}
+.header{text-align:center;margin-bottom:48px}
+.header h1{font-size:clamp(28px,5vw,48px);font-weight:800;letter-spacing:-0.03em;background:linear-gradient(135deg,#2997ff,#e7b84b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{color:var(--text3);margin-top:8px;font-size:14px}
+.stats{display:flex;gap:16px;justify-content:center;margin-bottom:40px;flex-wrap:wrap}
+.stat{padding:16px 24px;background:var(--card-bg);border:1px solid rgba(255,255,255,0.06);border-radius:var(--radius);text-align:center;backdrop-filter:blur(12px)}
+.stat strong{display:block;font-size:28px;font-weight:700}
+.stat span{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
+.cloud{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:40px}
+.cloud .tag{padding:5px 12px;border-radius:100px;background:rgba(41,151,255,0.08);color:var(--accent);font-size:13px;font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--card-bg);border:1px solid rgba(255,255,255,0.06);border-radius:var(--radius);overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;backdrop-filter:blur(12px)}
+.card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,0.3)}
+.card-thumb img{width:100%;height:140px;object-fit:cover}
+.card-body{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.card-body h3{font-size:16px;font-weight:600;letter-spacing:-0.01em}
+.card-body h3 a{color:var(--text);text-decoration:none}
+.card-body h3 a:hover{color:var(--accent)}
+.summary{font-size:13px;line-height:1.55;color:var(--text2)}
+.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text3)}
+.category{color:var(--accent);font-weight:500}
+.score{color:var(--gold);font-weight:600}
+.sf{padding:2px 8px;border-radius:100px;background:rgba(160,120,255,0.1);color:#b794f4;font-size:11px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{padding:3px 10px;border-radius:100px;background:rgba(255,255,255,0.04);color:var(--text3);font-size:11px}
+.footer{text-align:center;margin-top:48px;color:var(--text3);font-size:12px}
+</style></head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Markbase 书签时间胶囊</h1>
+    <p>导出时间：${now} · 共 ${total} 条书签</p>
+  </div>
+  <div class="stats">
+    <div class="stat"><strong>${total}</strong><span>总收藏</span></div>
+    <div class="stat"><strong>${categorized}</strong><span>已分类</span></div>
+    <div class="stat"><strong>${avgScore}</strong><span>平均评分</span></div>
+  </div>
+  <div class="cloud">${top10.map(([n,c])=>`<span class="tag">#${escHtml(n)} (${c})</span>`).join(" ")}</div>
+  <div class="grid">${cards}</div>
+  <div class="footer">Markbase · 生成于 ${now}</div>
+</div>
+</body></html>`;
+  }
+
+  /* ================================================================== */
+  /* 11. Gist Backup / Restore                                            */
+  /* ================================================================== */
+  async function backupToGist(metas, token, gistId) {
+    if (!token) throw new Error("请在 API 设置中填写 GitHub Token");
+    const data = JSON.stringify(metas.map(m => ({
+      bookmarkId: m.bookmarkId, url: m.url, title: m.title,
+      summary: m.summary, category: m.category, tags: m.tags,
+      notes: m.notes, score: m.score, scoreReason: m.scoreReason,
+      smartFolder: m.smartFolder, thumbnails: m.thumbnails,
+      bestThumb: m.bestThumb, manualBestThumb: m.manualBestThumb,
+      thumbCaptions: m.thumbCaptions, status: m.status,
+      linkStatus: m.linkStatus, addedAt: m.addedAt
+    })), null, 2);
+
+    const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const headers = { "Authorization": `token ${token}`, "Content-Type": "application/json" };
+
+    if (gistId) {
+      // Update existing
+      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ files: { "markbase-backup.json": { content: data } }, description: `Markbase backup · ${ts}` })
+      });
+      if (!res.ok) throw new Error(`Gist update failed: ${res.status}`);
+      const json = await res.json();
+      return { gistId: json.id, url: json.html_url, msg: "备份已更新" };
+    } else {
+      // Create new
+      const res = await fetch("https://api.github.com/gists", {
+        method: "POST", headers,
+        body: JSON.stringify({ description: `Markbase backup · ${ts}`, public: false, files: { "markbase-backup.json": { content: data } } })
+      });
+      if (!res.ok) throw new Error(`Gist create failed: ${res.status}`);
+      const json = await res.json();
+      return { gistId: json.id, url: json.html_url, msg: "备份已创建" };
+    }
+  }
+
+  async function restoreFromGist(gistId, token) {
+    if (!gistId || !token) throw new Error("需要 Gist ID 和 Token");
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { "Authorization": `token ${token}`, "Accept": "application/vnd.github.v3+json" }
+    });
+    if (!res.ok) throw new Error(`Gist fetch failed: ${res.status}`);
+    const json = await res.json();
+    const file = json.files?.["markbase-backup.json"];
+    if (!file?.content) throw new Error("Gist 中未找到备份文件");
+    const metas = JSON.parse(file.content);
+    if (!Array.isArray(metas)) throw new Error("备份数据格式错误");
+    return { metas, count: metas.length, backupDate: json.updated_at };
+  }
+
+  function escHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
   /* ================================================================== */
   /* 9. Link Health Check                                                */

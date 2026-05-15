@@ -78,6 +78,18 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="17" r="3" stroke="currentColor" stroke-width="1.5"/><line x1="9.5" y1="9.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.5"/></svg>
         <span>标签关系图</span>
       </button>
+      <button class="sidebar-btn" id="capsuleBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span>时间胶囊</span>
+      </button>
+      <button class="sidebar-btn" id="gistBackupBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>备份到 Gist</span>
+      </button>
+      <button class="sidebar-btn" id="gistRestoreBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>从 Gist 恢复</span>
+      </button>
       <button class="sidebar-btn" id="exportBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>导出 JSON</span>
@@ -254,6 +266,17 @@
               <option value="doubao">豆包</option>
               <option value="custom">自定义</option>
             </select>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>Gist 备份</h3>
+          <div class="settings-row">
+            <label>GitHub Token</label>
+            <input type="password" id="gistToken" placeholder="ghp_...">
+          </div>
+          <div class="settings-row">
+            <label>Gist ID（已有则填入）</label>
+            <input type="text" id="gistId" placeholder="留空自动创建新 Gist">
           </div>
         </div>
         <div class="settings-note">API Key 仅保存在浏览器本地，不会上传到任何第三方。</div>
