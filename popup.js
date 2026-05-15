@@ -25,7 +25,7 @@
   async function loadData() {
     // Get metas from shared IndexedDB
     const DB_NAME = "markbase_ext";
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
     const db = await new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onsuccess = () => resolve(req.result);

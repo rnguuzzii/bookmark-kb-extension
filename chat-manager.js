@@ -50,7 +50,7 @@ const ChatManager = (() => {
     const tx1 = db.transaction("messages", "readwrite");
     const msgStore = tx1.objectStore("messages");
     const idx = msgStore.index("conversationId");
-    const keys = await new Promise((resolve) => { const req = idx.getAllKeys(); req.onsuccess = () => resolve(req.result); });
+    const keys = await new Promise((resolve) => { const req = idx.getAllKeys(id); req.onsuccess = () => resolve(req.result); });
     for (const k of keys) msgStore.delete(k);
     await new Promise(r => { tx1.oncomplete = r; });
     // Delete conversation
@@ -492,11 +492,11 @@ const ChatManager = (() => {
       });
     });
     chatConvList.querySelectorAll(".chat-conv-del").forEach(el => {
-      el.addEventListener("click", (e) => {
+      el.addEventListener("click", async (e) => {
         e.stopPropagation();
         const id = el.dataset.delConv;
         if (confirm("删除对话？")) {
-          deleteConversation(id);
+          await deleteConversation(id);
           convs = convs.filter(c => c.id !== id);
           if (currentConvId === id) {
             currentConvId = null; messages = [];
@@ -545,7 +545,7 @@ const ChatManager = (() => {
       if (isUser) html += `<div class="chat-avatar chat-avatar-user">U</div>`;
       // Copy button for AI messages
       if (!isUser && m.content) {
-        html += `<button class="chat-copy-btn" data-copy="${esc(m.content).replace(/"/g, '&quot;')}" title="复制">&copy2;</button>`;
+        html += `<button class="chat-copy-btn" data-copy="${esc(m.content).replace(/"/g, '&quot;')}" title="复制">📋</button>`;
       }
       html += `</div>`;
     }
@@ -558,7 +558,7 @@ const ChatManager = (() => {
         const text = btn.dataset.copy;
         navigator.clipboard.writeText(text).then(() => {
           btn.textContent = "✓";
-          setTimeout(() => btn.textContent = "©2", 1200);
+          setTimeout(() => btn.textContent = "📋", 1200);
         });
       });
     });

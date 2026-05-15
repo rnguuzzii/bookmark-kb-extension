@@ -474,7 +474,7 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
       try {
         const page = await LLM.fetchPageContent(m.url);
         if (page.images.length > 0) {
-          m.thumbnails = page.images.slice(0, 12).map(i => ({ url: i.url, source: i.source, width: i.width || 0, height: i.height || 0 }));
+          m.thumbnails = page.images.slice(0, 12).map(i => ({ url: i.url, source: i.source }));
           await metaPut(m);
         }
         done++;

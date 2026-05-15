@@ -177,7 +177,7 @@ chrome.bookmarks.onCreated.addListener(async (id, bookmark) => {
           await metaPut({
             bookmarkId: id, url: bookmark.url, title: bookmark.title,
             summary: r.summary || "", category: r.category || "", tags: r.tags || [],
-            notes: "", thumbnails: [], needsAnalysis: true, addedAt: bookmark.dateAdded || Date.now()
+            notes: "", thumbnails: [], needsAnalysis: false, addedAt: bookmark.dateAdded || Date.now()
           });
         } catch(e) { /* JSON parse failed, keep analysis flag */ }
       }
@@ -216,7 +216,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const bm = await chrome.bookmarks.create({ title: msg.title, url: msg.url });
-        await metaPut({ bookmarkId: bm.id, url: msg.url, title: msg.title, category: "", tags: [], summary: "", notes: "", addedAt: Date.now() });
+        await metaPut({ bookmarkId: bm.id, url: msg.url, title: msg.title, category: "", tags: [], summary: "", notes: "", thumbnails: [], needsAnalysis: true, addedAt: Date.now() });
         sendResponse({ ok: true, id: bm.id });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
@@ -232,7 +232,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (!url) return;
     try {
       const bm = await chrome.bookmarks.create({ title, url });
-      await metaPut({ bookmarkId: bm.id, url, title, category: "", tags: [], summary: "", notes: "", addedAt: Date.now() });
+      await metaPut({ bookmarkId: bm.id, url, title, category: "", tags: [], summary: "", notes: "", thumbnails: [], needsAnalysis: true, addedAt: Date.now() });
       // Open dashboard to show result
       chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
     } catch (e) { console.error("[Markbase] Add failed:", e); }

@@ -16,6 +16,15 @@
           store.createIndex("addedAt", "addedAt", { unique: false });
           store.createIndex("tags", "tags", { unique: false, multiEntry: true });
         }
+        if (!db.objectStoreNames.contains("conversations")) {
+          const conv = db.createObjectStore("conversations", { keyPath: "id" });
+          conv.createIndex("updatedAt", "updatedAt", { unique: false });
+        }
+        if (!db.objectStoreNames.contains("messages")) {
+          const msg = db.createObjectStore("messages", { keyPath: "id" });
+          msg.createIndex("conversationId", "conversationId", { unique: false });
+          msg.createIndex("timestamp", "timestamp", { unique: false });
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -413,15 +422,16 @@
         title: b.title,
         onProgress: (msg) => showToast(msg)
       });
+      const existing = metas.find(m => m.bookmarkId === id) || {};
       const record = {
+        ...existing,
         bookmarkId: id,
         url: b.url,
         title: b.title,
-        summary: result.summary || "",
-        category: result.category || "未分类",
-        tags: result.tags || [],
-        thumbnails: result.thumbnails || [],
-        notes: (metas.find(m => m.bookmarkId === id)?.notes) || "",
+        summary: result.summary || existing.summary || "",
+        category: result.category || existing.category || "未分类",
+        tags: result.tags || existing.tags || [],
+        thumbnails: result.thumbnails || existing.thumbnails || [],
         needsAnalysis: false,
         addedAt: b.addedAt
       };
@@ -451,13 +461,13 @@
           title: b.title,
           onProgress: (msg) => showToast(`${msg} (${done + 1}/${list.length})`, true)
         });
+        const ex = metas.find(m => m.bookmarkId === b.id) || {};
         await metaPut({
-          bookmarkId: b.id, url: b.url, title: b.title,
-          summary: result.summary || "",
-          category: result.category || "未分类",
-          tags: result.tags || [],
-          thumbnails: result.thumbnails || [],
-          notes: (metas.find(m => m.bookmarkId === b.id)?.notes) || "",
+          ...ex, bookmarkId: b.id, url: b.url, title: b.title,
+          summary: result.summary || ex.summary || "",
+          category: result.category || ex.category || "未分类",
+          tags: result.tags || ex.tags || [],
+          thumbnails: result.thumbnails || ex.thumbnails || [],
           needsAnalysis: false,
           addedAt: Date.now()
         });
@@ -501,13 +511,13 @@
           title: b.title,
           onProgress: (msg) => showToast(`${msg} (${done + 1}/${list.length})`, true)
         });
+        const ex = metas.find(m => m.bookmarkId === b.id) || {};
         await metaPut({
-          bookmarkId: b.id, url: b.url, title: b.title,
-          summary: result.summary || "",
-          category: result.category || "未分类",
-          tags: result.tags || [],
-          thumbnails: result.thumbnails || [],
-          notes: (metas.find(m => m.bookmarkId === b.id)?.notes) || "",
+          ...ex, bookmarkId: b.id, url: b.url, title: b.title,
+          summary: result.summary || ex.summary || "",
+          category: result.category || ex.category || "未分类",
+          tags: result.tags || ex.tags || [],
+          thumbnails: result.thumbnails || ex.thumbnails || [],
           needsAnalysis: false,
           addedAt: Date.now()
         });
@@ -560,6 +570,7 @@
       await metaPut({
         bookmarkId: bm.id, url, title,
         category: "", tags: [], summary: "", notes: "",
+        thumbnails: [], needsAnalysis: true,
         addedAt: bm.dateAdded || Date.now()
       });
       await refresh();
@@ -897,7 +908,7 @@
     const count = checkedIds.size;
     const bar = document.getElementById("batchBar");
     bar.style.display = count > 0 ? "" : "none";
-    document.getElementById("batchCount").textContent = `已选 ${count} 项`;
+    document.getElementById("batchCountLabel").textContent = `已选 ${count} 项`;
   }
 
   // Select all / Deselect all
