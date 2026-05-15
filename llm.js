@@ -468,7 +468,7 @@ ${page.text || `标题：${title}`}
     if (!supportsVision(provider)) return { bestIndex: 0, captions: [], bestUrl: images[0]?.url };
 
     const imgs = images.slice(0, 3).map(i => i.url);
-    const prompt = `这是网页"${title?.slice(0,40)}"(${url})的缩略图。判断哪张最能代表页面内容，给每张图5字中文描述。只返回JSON：{"bestIndex":0,"captions":["描述1","描述2","描述3"]}`;
+    const prompt = `这是网页"${title?.slice(0,40)}"(${url})的缩略图。选最能代表页面内容的图。优先选：有人物、场景丰富、色彩鲜艳的。不选：纯logo、纯文字、单一色块、纯代码。给每张图5字中文描述。只返回JSON：{"bestIndex":0,"captions":["描述1","描述2","描述3"]}`;
 
     try {
       const compressed = (await Promise.allSettled(imgs.map(img => compressImage(img))))

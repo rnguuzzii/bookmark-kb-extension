@@ -149,6 +149,7 @@
         smartFolder: m?.smartFolder || [],
         thumbnails: m?.thumbnails || [],
         bestThumb: m?.bestThumb || "",
+        manualBestThumb: m?.manualBestThumb || "",
         thumbCaptions: m?.thumbCaptions || [],
         linkStatus: m?.linkStatus || "unchecked",
         status: m?.status || "unread"
@@ -248,7 +249,7 @@
       : '<span class="bm-status bm-status-unread" data-action="status" data-id="' + b.id + '" data-status="unread">○ 待读</span>';
     const scoreBadge = b.score ? `<span class="bm-score">⭐ ${b.score}/10 ${b.scoreReason||""}</span>` : "";
     const sfBadge = b.smartFolder?.length ? b.smartFolder.map(f => `<span class="bm-smart-folder">📁 ${esc(f)}</span>`).join("") : "";
-    const cardThumb = b.bestThumb || b.thumbnails?.[0]?.url || "";
+    const cardThumb = b.manualBestThumb || b.bestThumb || b.thumbnails?.[0]?.url || "";
     const thumbHTML = cardThumb
       ? `<img class="bm-thumb" src="${esc(cardThumb)}" loading="lazy" onerror="this.style.display='none'" alt="">`
       : "";
@@ -337,13 +338,14 @@
     const tagsHTML = (b.tags || []).map(t => `<span class="bm-tag">${esc(t)}</span>`).join(" ");
 
     const detailThumbs = b.thumbnails?.length
-      ? `<div class="detail-section"><h4>页面缩略图（${b.thumbnails.length} 张）</h4><div class="detail-thumbs">${b.thumbnails.slice(0,12).map((t, i) => {
-        const isBest = t.url === b.bestThumb;
+      ? `<div class="detail-section"><h4>页面缩略图（${b.thumbnails.length} 张）<span style="font-size:11px;color:var(--text-tertiary);font-weight:400;margin-left:8px">点击图片设为封面</span></h4><div class="detail-thumbs" data-id="${b.id}">${b.thumbnails.slice(0,12).map((t, i) => {
+        const isManual = t.url === b.manualBestThumb;
+        const isAi = !isManual && t.url === b.bestThumb;
         const cap = b.thumbCaptions?.[i] || "";
-        return `<div class="detail-thumb-item${isBest ? ' best' : ''}">
-          <a href="${esc(t.url)}" target="_blank"><img src="${esc(t.url)}" loading="lazy" onerror="this.parentElement.parentElement.style.display='none'" title="${esc(t.source)}${cap ? ' - ' + cap : ''}"></a>
+        return `<div class="detail-thumb-item${isManual ? ' best manual' : isAi ? ' best' : ''}" data-thumb-url="${esc(t.url)}">
+          <img src="${esc(t.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" title="${esc(t.source)}${cap ? ' - ' + cap : ''}">
           ${cap ? `<span class="thumb-cap">${esc(cap)}</span>` : ""}
-          ${isBest ? '<span class="thumb-best">精选</span>' : ""}
+          ${isManual ? '<span class="thumb-best manual">自选</span>' : isAi ? '<span class="thumb-best">精选</span>' : ''}
         </div>`;
       }).join("")}</div></div>`
       : "";
@@ -370,6 +372,21 @@
         if (btn.dataset.action === "ai") { closeDetail(); await runSingleAI(aid); }
         if (btn.dataset.action === "delete") {
           if (confirm("确认删除？")) { await chrome.bookmarks.remove(aid); await metaDelete(aid); await refresh(); render(); closeDetail(); }
+        }
+      });
+    });
+
+    // Manual thumbnail selection
+    detailContent.querySelectorAll(".detail-thumb-item").forEach(item => {
+      item.addEventListener("click", async () => {
+        const thumbUrl = item.dataset.thumbUrl;
+        const meta = metas.find(m => m.bookmarkId === id);
+        if (meta) {
+          meta.manualBestThumb = thumbUrl;
+          await metaPut(meta);
+          await refresh();
+          openDetail(id); // re-render detail
+          render(); // update card thumbnail
         }
       });
     });

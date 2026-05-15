@@ -476,7 +476,9 @@ button,input,select{font:inherit;color:inherit;outline:none}
 .detail-thumbs{display:flex;gap:10px;flex-wrap:wrap}
 .detail-thumb-item{
   position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;
+  cursor:pointer;
 }
+.detail-thumb-item:hover img{filter:brightness(1.15)}
 .detail-thumbs img{
   width:100px;height:66px;object-fit:cover;border-radius:8px;
   border:1px solid rgba(255,255,255,0.08);
@@ -489,6 +491,7 @@ button,input,select{font:inherit;color:inherit;outline:none}
   position:absolute;top:-6px;right:-6px;padding:1px 6px;border-radius:10px;
   background:var(--accent);color:#fff;font-size:9px;font-weight:600;
 }
+.thumb-best.manual{background:var(--gold);color:#111}
 [data-theme="light"] .detail-thumbs img{border-color:rgba(0,0,0,0.1)}
 
 /* ================================================================== */
