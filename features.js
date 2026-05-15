@@ -486,6 +486,40 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
     getMetas, metaPut,
     scoreBookmarks, smartFolders, renderGraph, exportMarkdown,
     randomDiscovery, dailyPick, weeklyReport, timeAgo,
-    batchFetchThumbnails
+    batchFetchThumbnails,
+    checkLinksHealth
   };
+
+  /* ================================================================== */
+  /* 9. Link Health Check                                                */
+  /* ================================================================== */
+  async function checkLinksHealth(metas, onProgress) {
+    const toCheck = metas.filter(m => !m.linkStatus || m.linkStatus === "unchecked");
+    if (toCheck.length === 0) return { ok: metas.filter(m => m.linkStatus === "ok").length, dead: metas.filter(m => m.linkStatus === "dead").length, msg: "所有链接已检查" };
+
+    let ok = 0, dead = 0, redirect = 0, timeout = 0;
+    for (let i = 0; i < toCheck.length; i++) {
+      const m = toCheck[i];
+      onProgress && onProgress(`检查 ${i + 1}/${toCheck.length}`);
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(m.url, { method: "HEAD", signal: controller.signal, headers: { "User-Agent": "Mozilla/5.0" } });
+        clearTimeout(timer);
+        if (res.ok) { m.linkStatus = "ok"; ok++; }
+        else if (res.status >= 300 && res.status < 400) { m.linkStatus = "redirect"; redirect++; }
+        else { m.linkStatus = "dead"; dead++; }
+      } catch (e) {
+        if (e.name === "AbortError") { m.linkStatus = "timeout"; timeout++; }
+        else { m.linkStatus = "dead"; dead++; }
+      }
+      await metaPut(m);
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    // Also count existing checks
+    const allOk = metas.filter(m => m.linkStatus === "ok").length;
+    const allDead = metas.filter(m => m.linkStatus === "dead").length;
+    return { ok: allOk, dead: allDead, redirect, timeout, msg: `健康检查完成：${allOk} 正常，${allDead} 失效` };
+  }
 })();

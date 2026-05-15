@@ -148,6 +148,7 @@
         scoreReason: m?.scoreReason || "",
         smartFolder: m?.smartFolder || [],
         thumbnails: m?.thumbnails || [],
+        linkStatus: m?.linkStatus || "unchecked",
         status: m?.status || "unread"
       };
     });
@@ -250,8 +251,16 @@
       : "";
     const domain = (() => { try { return new URL(b.url).hostname; } catch { return ""; } })();
 
+    const linkDot = b.linkStatus === "dead"
+      ? '<span class="link-dot dead" title="链接失效">●</span>'
+      : b.linkStatus === "redirect" ? '<span class="link-dot warn" title="重定向">●</span>'
+      : b.linkStatus === "timeout" ? '<span class="link-dot warn" title="超时">●</span>'
+      : "";
+
     return `
     <article class="bm-card" data-id="${b.id}">
+      <input type="checkbox" class="bm-check" data-id="${b.id}" style="position:absolute;top:14px;right:14px;z-index:2;accent-color:var(--accent);width:16px;height:16px">
+      ${linkDot}
       ${thumbHTML}
       <div class="bm-card-header">
         <div class="bm-favicon"><img src="https://logo.clearbit.com/${domain}?size=32" loading="lazy" onerror="this.style.display='none'"></div>
@@ -841,6 +850,94 @@
     bookmarkGrid.style.display = "none";
     const metas = await Features.getMetas();
     Features.renderGraph(document.getElementById("graphCanvas"), metas);
+  });
+
+  // Batch operations state
+  let checkedIds = new Set();
+
+  function getChecked() { return [...document.querySelectorAll(".bm-check:checked")].map(cb => cb.dataset.id); }
+
+  // Selection tracking
+  bookmarkGrid.addEventListener("change", (e) => {
+    if (e.target.classList.contains("bm-check")) {
+      checkedIds = new Set(getChecked());
+      updateBatchBar();
+    }
+  });
+
+  function updateBatchBar() {
+    const count = checkedIds.size;
+    const bar = document.getElementById("batchBar");
+    bar.style.display = count > 0 ? "" : "none";
+    document.getElementById("batchCount").textContent = `已选 ${count} 项`;
+  }
+
+  // Select all / Deselect all
+  document.getElementById("batchSelectAll").addEventListener("click", () => {
+    document.querySelectorAll(".bm-check").forEach(cb => { cb.checked = true; checkedIds.add(cb.dataset.id); });
+    updateBatchBar();
+  });
+  document.getElementById("batchDeselectAll").addEventListener("click", () => {
+    document.querySelectorAll(".bm-check").forEach(cb => { cb.checked = false; });
+    checkedIds.clear();
+    updateBatchBar();
+  });
+
+  // Batch delete
+  document.getElementById("batchDelete").addEventListener("click", async () => {
+    if (!confirm(`删除选中的 ${checkedIds.size} 条书签？`)) return;
+    for (const id of checkedIds) {
+      try { await chrome.bookmarks.remove(id); await metaDelete(id); } catch(e) {}
+    }
+    checkedIds.clear(); updateBatchBar();
+    await refresh(); render();
+    showToast(`已删除`);
+  });
+
+  // Batch recategorize
+  document.getElementById("batchRecat").addEventListener("click", async () => {
+    const cat = prompt("输入新分类名：");
+    if (!cat) return;
+    for (const id of checkedIds) {
+      const meta = metas.find(m => m.bookmarkId === id);
+      if (meta) { meta.category = cat; await metaPut(meta); }
+    }
+    await refresh(); render();
+    showToast(`已改分类为 "${cat}"`);
+  });
+
+  // Batch add tag
+  document.getElementById("batchTag").addEventListener("click", async () => {
+    const tag = prompt("输入要添加的标签：");
+    if (!tag) return;
+    for (const id of checkedIds) {
+      const meta = metas.find(m => m.bookmarkId === id);
+      if (meta) { meta.tags = meta.tags || []; if (!meta.tags.includes(tag)) { meta.tags.push(tag); await metaPut(meta); } }
+    }
+    await refresh(); render();
+    showToast(`已添加标签 #${tag}`);
+  });
+
+  // Link health check
+  document.getElementById("linkCheckBtn").addEventListener("click", async () => {
+    showToast("链接健康检查中...");
+    const allMetas = await Features.getMetas();
+    const result = await Features.checkLinksHealth(allMetas, (msg) => showToast(msg, true));
+    await refresh(); render();
+    showToast(result.msg);
+  });
+
+  // Delete dead links
+  document.getElementById("deleteDeadBtn").addEventListener("click", async () => {
+    const allMetas = await Features.getMetas();
+    const deadLinks = allMetas.filter(m => m.linkStatus === "dead");
+    if (deadLinks.length === 0) { showToast("没有死链，先运行链接健康检查"); return; }
+    if (!confirm(`发现 ${deadLinks.length} 条死链，确认删除？\n${deadLinks.slice(0,5).map(m => m.title?.slice(0,40)).join("\n")}${deadLinks.length>5 ? `\n...还有 ${deadLinks.length-5} 条` : ""}`)) return;
+    for (const m of deadLinks) {
+      try { await chrome.bookmarks.remove(m.bookmarkId); await metaDelete(m.bookmarkId); } catch(e) {}
+    }
+    await refresh(); render();
+    showToast(`已删除 ${deadLinks.length} 条死链`);
   });
 
   // Batch thumbnails

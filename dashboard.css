@@ -484,6 +484,38 @@ button,input,select{font:inherit;color:inherit;outline:none}
 [data-theme="light"] .detail-thumbs img{border-color:rgba(0,0,0,0.1)}
 
 /* ================================================================== */
+/* Link Health & Batch Bar                                             */
+/* ================================================================== */
+.link-dot{position:absolute;top:14px;right:38px;z-index:2;font-size:8px;pointer-events:none}
+.link-dot.dead{color:#f0644f}
+.link-dot.warn{color:var(--gold)}
+
+.batch-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 18px;margin:8px 12px;
+  border-radius:12px;
+  background:rgba(41,151,255,0.08);border:1px solid rgba(41,151,255,0.15);
+  flex-wrap:wrap;
+}
+.batch-count{font-size:13px;font-weight:600;color:var(--accent);margin-right:8px}
+.toolbar-btn.danger{border-color:rgba(240,100,79,0.25);background:rgba(240,100,79,0.06)}
+.toolbar-btn.danger:hover{border-color:rgba(240,100,79,0.5);background:rgba(240,100,79,0.12)}
+.sidebar-btn.danger{border-color:rgba(240,100,79,0.15)}
+
+.bm-check{
+  appearance:none;-webkit-appearance:none;
+  width:17px!important;height:17px!important;
+  border:1.5px solid rgba(255,255,255,0.2)!important;
+  border-radius:5px!important;background:transparent!important;
+  cursor:pointer!important;accent-color:var(--accent)!important;
+  transition:all 0.15s ease!important;
+}
+.bm-check:checked{background:var(--accent)!important;border-color:var(--accent)!important}
+.bm-check:checked::after{content:"✓";display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700}
+.bm-card:hover .bm-check{border-color:rgba(255,255,255,0.4)}
+.bm-card:has(.bm-check:checked){border-color:var(--accent);box-shadow:0 0 20px rgba(41,151,255,0.1)}
+
+/* ================================================================== */
 /* Graph Panel                                                          */
 /* ================================================================== */
 .graph-panel{
