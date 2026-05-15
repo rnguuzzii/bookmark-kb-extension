@@ -1100,6 +1100,19 @@
     // Init chat manager
     ChatManager.init(document.getElementById("chatWindow"));
 
+    // Daily quote
+    const quoteEl = document.getElementById("dailyQuote");
+    const bannerEl = document.getElementById("dailyBanner");
+    if (quoteEl && bannerEl && metas.length > 0) {
+      Features.dailyQuote(metas).then(quote => {
+        quoteEl.textContent = quote;
+        bannerEl.style.display = "";
+      });
+    }
+    document.getElementById("dailyClose").addEventListener("click", () => {
+      bannerEl.style.display = "none";
+    });
+
     // Auto-process new bookmarks that need analysis
     const needAnalysis = metas.filter(m => m.needsAnalysis);
     if (needAnalysis.length > 0) {

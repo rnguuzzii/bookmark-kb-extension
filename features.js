@@ -513,7 +513,8 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
     scoreBookmarks, smartFolders, renderGraph, exportMarkdown,
     randomDiscovery, dailyPick, weeklyReport, timeAgo,
     batchFetchThumbnails, batchVisionCurate,
-    checkLinksHealth, exportTimeCapsule, backupToGist, restoreFromGist
+    checkLinksHealth, exportTimeCapsule, backupToGist, restoreFromGist,
+    dailyQuote
   };
 
   /* ================================================================== */
@@ -661,6 +662,45 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
   function escHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
   /* ================================================================== */
+  /* 12. AI Daily Quote                                                   */
+  /* ================================================================== */
+  async function dailyQuote(metas) {
+    const total = metas.length;
+    const unread = metas.filter(m => m.status === "unread" && m.summary).length;
+    const dead = metas.filter(m => m.linkStatus === "dead").length;
+    const weekAgo = Date.now() - 7 * 86400000;
+    const recent = metas.filter(m => m.addedAt > weekAgo);
+    const scored = metas.filter(m => m.score >= 9);
+    const unreadList = metas.filter(m => m.status === "unread" && m.summary);
+
+    // Neglected category
+    const catTotal = {}, catUnread = {};
+    metas.forEach(m => {
+      if (m.category && m.category !== "未分类") {
+        catTotal[m.category] = (catTotal[m.category] || 0) + 1;
+        if (m.status === "unread") catUnread[m.category] = (catUnread[m.category] || 0) + 1;
+      }
+    });
+    let neglected = ""; let maxR = 0;
+    for (const [c, t] of Object.entries(catTotal)) { const u = catUnread[c] || 0; if (t >= 3 && u / t > maxR) { maxR = u / t; neglected = c; } }
+
+    try {
+      const s = await getSettings();
+      const provider = s.chatProvider || "deepseek";
+      const ctx = `书签${total}条，待读${unread}，死链${dead}，本周新增${recent.length}，极品(9分+)${scored.length}本，${neglected ? `${neglected}积压严重` : ""}`;
+      const pick = unreadList[Math.floor(Math.random() * unreadList.length)];
+
+      const result = await LLM.textCall({
+        provider,
+        systemPrompt: "你是幽默俏皮的阅读助理。根据书签数据说一句15-40字中文问候，像朋友聊天，有趣但不做作。Always respond with valid JSON: {\"quote\":\"...\"}",
+        userPrompt: `数据：${ctx}${pick ? `，随机待读《${pick.title?.slice(0,30)}》` : ""}\n说一句。只返回JSON。`,
+        temperature: 0.8
+      });
+      return result?.quote || `你有 ${unread} 条书签还没读，${pick ? `"${pick.title?.slice(0,25)}" 在等你` : "该翻牌了"} 📚`;
+    } catch (e) {
+      return `📚 ${unread} 条待读 · ${total} 条书签 · ${neglected || "某类领域"} 积压不少`;
+    }
+  }
   /* 9. Link Health Check                                                */
   /* ================================================================== */
   async function checkLinksHealth(metas, onProgress) {
