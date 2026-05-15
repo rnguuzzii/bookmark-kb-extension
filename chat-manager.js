@@ -234,12 +234,19 @@ const ChatManager = (() => {
     // Dragging
     const header = chatContainer.querySelector(".chat-header");
     header.addEventListener("mousedown", (e) => {
-      if (e.target.closest("button")) return;
+      if (e.target.closest("button, select")) return;
       isDragging = true;
+      e.preventDefault();
       const rect = chatContainer.getBoundingClientRect();
+      // If positioned via right/bottom, compute left/top from rect
       dragOffset.x = e.clientX - rect.left;
       dragOffset.y = e.clientY - rect.top;
+      chatContainer.style.left = rect.left + "px";
+      chatContainer.style.top = rect.top + "px";
+      chatContainer.style.right = "auto";
+      chatContainer.style.bottom = "auto";
       chatContainer.style.transition = "none";
+      document.body.style.userSelect = "none";
     });
     document.addEventListener("mousemove", (e) => {
       if (!isDragging) return;
@@ -247,10 +254,13 @@ const ChatManager = (() => {
       const y = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - chatContainer.offsetHeight));
       chatContainer.style.left = x + "px";
       chatContainer.style.top = y + "px";
-      chatContainer.style.right = "auto";
-      chatContainer.style.bottom = "auto";
     });
-    document.addEventListener("mouseup", () => { isDragging = false; chatContainer.style.transition = ""; });
+    document.addEventListener("mouseup", () => {
+      if (!isDragging) return;
+      isDragging = false;
+      chatContainer.style.transition = "";
+      document.body.style.userSelect = "";
+    });
   }
 
   /* ---------= Image Handling ---------- */
@@ -600,8 +610,16 @@ const ChatManager = (() => {
   /* ---------- Open / Close / Minimize ---------- */
   function open() {
     chatContainer.classList.add("open");
+    chatContainer.classList.remove("minimized");
+    isMinimized = false;
     chatFab.style.display = "none";
-    if (isMinimized) toggleMinimize();
+    // Reset position to default if never dragged
+    if (!chatContainer.style.left) {
+      chatContainer.style.left = "auto";
+      chatContainer.style.top = "auto";
+      chatContainer.style.right = "28px";
+      chatContainer.style.bottom = "92px";
+    }
   }
 
   function close() {
@@ -613,6 +631,11 @@ const ChatManager = (() => {
   function toggleMinimize() {
     isMinimized = !isMinimized;
     chatContainer.classList.toggle("minimized", isMinimized);
+    // Ensure minimized window stays visible at bottom
+    if (isMinimized) {
+      chatContainer.style.top = "auto";
+      chatContainer.style.bottom = "20px";
+    }
   }
 
   /* ---------- Helpers ---------- */

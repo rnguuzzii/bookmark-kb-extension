@@ -422,6 +422,20 @@ button,input,select{font:inherit;color:inherit;outline:none}
 [data-theme="light"] .chat-window{background:rgba(255,255,255,0.95);color:var(--text-primary)}
 [data-theme="light"] .toast{background:rgba(255,255,255,0.94)}
 [data-theme="light"] .chat-msg-user .chat-bubble-text{background:rgba(0,113,227,0.08);border-color:rgba(0,113,227,0.15)}
+[data-theme="light"] .chat-header{background:rgba(0,0,0,0.02)}
+[data-theme="light"] .chat-msg-ai .chat-bubble-text{color:#1d1d1f}
+[data-theme="light"] .chat-bubble-text{color:#1d1d1f}
+[data-theme="light"] .chat-input{background:rgba(0,0,0,0.03);color:#1d1d1f;border-color:rgba(0,0,0,0.1)}
+[data-theme="light"] .chat-input-area{background:rgba(0,0,0,0.01);border-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .chat-sidebar{background:rgba(0,0,0,0.015);border-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .chat-bubble-text pre{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.08)}
+[data-theme="light"] .chat-bubble-text :not(pre)>code{background:rgba(0,0,0,0.06)}
+[data-theme="light"] .chat-avatar{color:#1d1d1f !important}
+[data-theme="light"] .chat-conv-item{color:#6e6e73}
+[data-theme="light"] .chat-conv-item:hover{background:rgba(0,0,0,0.04);color:#1d1d1f}
+[data-theme="light"] .chat-conv-item.active{background:rgba(0,113,227,0.1);color:#0071e3}
+[data-theme="light"] .chat-model-select{color:#1d1d1f;background:rgba(0,0,0,0.03)}
+[data-theme="light"] .chat-image-btn{border-color:rgba(0,0,0,0.1)}
 
 /* ================================================================== */
 /* Theme / View Toggles                                                 */
