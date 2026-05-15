@@ -318,31 +318,44 @@ ${currentView ? "\n## 用户当前在看\n" + currentView : ""}
 
       result.text = text.slice(0, 3000);
 
-      // ---- Extract key images ----
-      const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute("content");
-      if (ogImage) {
-        const imgUrl = new URL(ogImage, url).href;
-        result.images.push({ url: imgUrl, source: "og:image" });
+      // ---- Extract key images (up to 12, strict dedup) ----
+      const seen = new Set(); // url + resolution key for dedup
+
+      function addImage(imgUrl, source, w = 0, h = 0) {
+        if (!imgUrl || imgUrl.startsWith("data:image/svg") || seen.has(imgUrl)) return;
+        // Skip 1x1 tracking / CSS placeholders
+        if ((w === 1 && h === 1) || (w < 50 && h < 50 && source !== "og:image")) return;
+        const key = `${w}x${h}|${imgUrl.split("?")[0].split("#")[0].slice(-80)}`;
+        if (seen.has(key)) return;
+        seen.add(imgUrl); seen.add(key);
+        result.images.push({ url: new URL(imgUrl, url).href, source, width: w, height: h });
       }
 
-      // Find largest images in content area
+      // Priority 1: og:image
+      addImage(doc.querySelector('meta[property="og:image"]')?.getAttribute("content"), "og:image");
+      // Priority 2: twitter:image
+      addImage(doc.querySelector('meta[name="twitter:image"]')?.getAttribute("content"), "twitter:image");
+      // Priority 3: schema.org image
+      doc.querySelectorAll('[itemprop="image"]').forEach(el => {
+        addImage(el.getAttribute("content") || el.getAttribute("src"), "schema");
+      });
+
+      // Priority 4: content images
       const imgs = (main || doc).querySelectorAll("img[src]");
       const candidates = [];
       for (const img of imgs) {
-        const src = img.getAttribute("src") || "";
-        if (!src || src.includes("data:image/svg") || src.includes("icon") || src.includes("logo") || src.includes("avatar")) continue;
-        const w = parseInt(img.getAttribute("width") || img.naturalWidth || "0");
-        const h = parseInt(img.getAttribute("height") || img.naturalHeight || "0");
-        const area = w * h || 10000; // default assume decent size
-        candidates.push({ url: new URL(src, url).href, area });
+        const src = img.getAttribute("src") || img.getAttribute("data-src") || "";
+        if (!src || src.startsWith("data:image/svg")) continue;
+        // Don't skip logo/icon/avatar outright — just penalize small ones
+        const w = parseInt(img.getAttribute("width") || img.naturalWidth || img.style?.width || "0");
+        const h = parseInt(img.getAttribute("height") || img.naturalHeight || img.style?.height || "0");
+        const area = w * h || (img.closest("header,nav,footer") ? 400 : 5000);
+        candidates.push({ url: src, area, w, h });
       }
       candidates.sort((a, b) => b.area - a.area);
-      // Take top 2 (excluding duplicate of og:image)
       for (const c of candidates) {
-        if (result.images.length >= 3) break;
-        if (!result.images.some(i => i.url === c.url)) {
-          result.images.push({ url: c.url, source: "content" });
-        }
+        if (result.images.length >= 12) break;
+        addImage(c.url, "content", c.w, c.h);
       }
     } catch (err) {
       result.error = err.name === "AbortError" ? "超时" : err.message;
@@ -447,11 +460,43 @@ ${page.text || `标题：${title}`}
     return list;
   }
 
+  /* ---------- Vision: select best image + captions ---------- */
+  async function visionSelectBest(images, title, url) {
+    await loadSettings();
+    const provider = settings.visionProvider || "qwen";
+    if (!images || images.length === 0) return { bestIndex: 0, captions: [], bestUrl: null };
+    if (!supportsVision(provider)) return { bestIndex: 0, captions: [], bestUrl: images[0]?.url };
+
+    const imgs = images.slice(0, 3).map(i => i.url);
+    const prompt = `这是网页"${title?.slice(0,40)}"(${url})的缩略图。判断哪张最能代表页面内容，给每张图5字中文描述。只返回JSON：{"bestIndex":0,"captions":["描述1","描述2","描述3"]}`;
+
+    try {
+      const compressed = (await Promise.allSettled(imgs.map(img => compressImage(img))))
+        .filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+      if (compressed.length === 0) return { bestIndex: 0, captions: [], bestUrl: images[0]?.url };
+
+      return await new Promise((resolve) => {
+        visionChat({
+          provider,
+          text: prompt,
+          images: compressed,
+          onDone: (reply) => {
+            try {
+              const r = JSON.parse(reply.replace(/```[^]*?```|```/g, "").trim());
+              resolve({ bestIndex: r.bestIndex || 0, captions: r.captions || [], bestUrl: images[r.bestIndex || 0]?.url });
+            } catch (e) { resolve({ bestIndex: 0, captions: [], bestUrl: images[0]?.url }); }
+          },
+          onError: () => resolve({ bestIndex: 0, captions: [], bestUrl: images[0]?.url })
+        });
+      });
+    } catch (e) { return { bestIndex: 0, captions: [], bestUrl: images[0]?.url }; }
+  }
+
   return {
     loadSettings, getProviderConfig, getVisionConfig, getProviderDisplayName,
     supportsVision, buildDynamicContext, compressImage,
     chatStream, visionChat, textCall, hasImage, getAvailableProviders,
-    fetchPageContent, deepAnalyze,
+    fetchPageContent, deepAnalyze, visionSelectBest,
     DEFAULT_SETTINGS
   };
 })();

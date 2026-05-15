@@ -462,9 +462,11 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
   /* ================================================================== */
   /* 8. Batch fetch thumbnails (lightweight, no LLM)                      */
   /* ================================================================== */
-  async function batchFetchThumbnails(metas, onProgress) {
-    const needThumbs = metas.filter(m => m.summary && (!m.thumbnails || m.thumbnails.length === 0));
-    if (needThumbs.length === 0) return { done: 0, msg: "所有已分析书签都有缩略图" };
+  async function batchFetchThumbnails(metas, onProgress, force = false) {
+    const needThumbs = force
+      ? metas.filter(m => m.summary)
+      : metas.filter(m => m.summary && (!m.thumbnails || m.thumbnails.length < 6));
+    if (needThumbs.length === 0) return { done: 0, msg: "所有已分析书签都有缩略图，可强制重新抓取" };
 
     let done = 0;
     for (const m of needThumbs) {
@@ -472,7 +474,7 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
       try {
         const page = await LLM.fetchPageContent(m.url);
         if (page.images.length > 0) {
-          m.thumbnails = page.images.slice(0, 6).map(i => ({ url: i.url, source: i.source }));
+          m.thumbnails = page.images.slice(0, 12).map(i => ({ url: i.url, source: i.source, width: i.width || 0, height: i.height || 0 }));
           await metaPut(m);
         }
         done++;
@@ -482,11 +484,35 @@ ${oldUnread ? `最旧的待读书签：《${oldUnread.title?.slice(0,40)}》(收
     return { done, msg: `缩略图已更新：${done} 条` };
   }
 
+  /* ================================================================== */
+  /* 8b. Vision AI curation — select best image + captions                */
+  /* ================================================================== */
+  async function batchVisionCurate(metas, onProgress) {
+    const toCurate = metas.filter(m => m.thumbnails && m.thumbnails.length > 0 && !m.bestThumb);
+    if (toCurate.length === 0) return { done: 0, msg: "所有缩略图已精选" };
+
+    let done = 0;
+    for (const m of toCurate) {
+      onProgress && onProgress(`视觉精选 ${done + 1}/${toCurate.length}`);
+      try {
+        const result = await LLM.visionSelectBest(m.thumbnails, m.title, m.url);
+        if (result.bestUrl) {
+          m.bestThumb = result.bestUrl;
+          m.thumbCaptions = result.captions || [];
+          await metaPut(m);
+        }
+        done++;
+      } catch (e) { done++; continue; }
+      await new Promise(r => setTimeout(r, 400));
+    }
+    return { done, msg: `视觉精选完成：${done} 条` };
+  }
+
   return {
     getMetas, metaPut,
     scoreBookmarks, smartFolders, renderGraph, exportMarkdown,
     randomDiscovery, dailyPick, weeklyReport, timeAgo,
-    batchFetchThumbnails,
+    batchFetchThumbnails, batchVisionCurate,
     checkLinksHealth
   };
 

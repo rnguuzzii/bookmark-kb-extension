@@ -148,6 +148,8 @@
         scoreReason: m?.scoreReason || "",
         smartFolder: m?.smartFolder || [],
         thumbnails: m?.thumbnails || [],
+        bestThumb: m?.bestThumb || "",
+        thumbCaptions: m?.thumbCaptions || [],
         linkStatus: m?.linkStatus || "unchecked",
         status: m?.status || "unread"
       };
@@ -246,8 +248,9 @@
       : '<span class="bm-status bm-status-unread" data-action="status" data-id="' + b.id + '" data-status="unread">○ 待读</span>';
     const scoreBadge = b.score ? `<span class="bm-score">⭐ ${b.score}/10 ${b.scoreReason||""}</span>` : "";
     const sfBadge = b.smartFolder?.length ? b.smartFolder.map(f => `<span class="bm-smart-folder">📁 ${esc(f)}</span>`).join("") : "";
-    const thumbHTML = b.thumbnails?.length > 0
-      ? `<img class="bm-thumb" src="${esc(b.thumbnails[0].url)}" loading="lazy" onerror="this.style.display='none'" alt="">`
+    const cardThumb = b.bestThumb || b.thumbnails?.[0]?.url || "";
+    const thumbHTML = cardThumb
+      ? `<img class="bm-thumb" src="${esc(cardThumb)}" loading="lazy" onerror="this.style.display='none'" alt="">`
       : "";
     const domain = (() => { try { return new URL(b.url).hostname; } catch { return ""; } })();
 
@@ -334,7 +337,15 @@
     const tagsHTML = (b.tags || []).map(t => `<span class="bm-tag">${esc(t)}</span>`).join(" ");
 
     const detailThumbs = b.thumbnails?.length
-      ? `<div class="detail-section"><h4>页面缩略图</h4><div class="detail-thumbs">${b.thumbnails.slice(0,6).map(t => `<a href="${esc(t.url)}" target="_blank"><img src="${esc(t.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" title="${esc(t.source)}"></a>`).join("")}</div></div>`
+      ? `<div class="detail-section"><h4>页面缩略图（${b.thumbnails.length} 张）</h4><div class="detail-thumbs">${b.thumbnails.slice(0,12).map((t, i) => {
+        const isBest = t.url === b.bestThumb;
+        const cap = b.thumbCaptions?.[i] || "";
+        return `<div class="detail-thumb-item${isBest ? ' best' : ''}">
+          <a href="${esc(t.url)}" target="_blank"><img src="${esc(t.url)}" loading="lazy" onerror="this.parentElement.parentElement.style.display='none'" title="${esc(t.source)}${cap ? ' - ' + cap : ''}"></a>
+          ${cap ? `<span class="thumb-cap">${esc(cap)}</span>` : ""}
+          ${isBest ? '<span class="thumb-best">精选</span>' : ""}
+        </div>`;
+      }).join("")}</div></div>`
       : "";
 
     detailContent.innerHTML = `
@@ -940,11 +951,27 @@
     showToast(`已删除 ${deadLinks.length} 条死链`);
   });
 
-  // Batch thumbnails
+  // Batch thumbnails (with force option)
   document.getElementById("thumbBtn").addEventListener("click", async () => {
-    showToast("抓取缩略图中...");
     const allMetas = await Features.getMetas();
-    const result = await Features.batchFetchThumbnails(allMetas, (msg) => showToast(msg, true));
+    const hasThumbs = allMetas.filter(m => m.thumbnails?.length >= 6).length;
+    let force = false;
+    if (hasThumbs > allMetas.filter(m => m.summary).length * 0.8) {
+      if (!confirm(`大部分已有缩略图。是否强制重新抓取全部（用新算法，12 张/页面）？`)) force = false;
+      else force = true;
+    }
+    showToast("抓取缩略图中...");
+    const result = await Features.batchFetchThumbnails(allMetas, (msg) => showToast(msg, true), force);
+    await refresh();
+    render();
+    showToast(result.msg);
+  });
+
+  // Vision curation
+  document.getElementById("visionBtn").addEventListener("click", async () => {
+    showToast("视觉 AI 精选中...");
+    const allMetas = await Features.getMetas();
+    const result = await Features.batchVisionCurate(allMetas, (msg) => showToast(msg, true));
     await refresh();
     render();
     showToast(result.msg);
