@@ -318,44 +318,77 @@ ${currentView ? "\n## 用户当前在看\n" + currentView : ""}
 
       result.text = text.slice(0, 3000);
 
-      // ---- Extract key images (up to 12, strict dedup) ----
-      const seen = new Set(); // url + resolution key for dedup
-
-      function addImage(imgUrl, source, w = 0, h = 0) {
-        if (!imgUrl || imgUrl.startsWith("data:image/svg") || seen.has(imgUrl)) return;
-        // Skip 1x1 tracking / CSS placeholders
-        if ((w === 1 && h === 1) || (w < 50 && h < 50 && source !== "og:image")) return;
-        const key = `${w}x${h}|${imgUrl.split("?")[0].split("#")[0].slice(-80)}`;
-        if (seen.has(key)) return;
-        seen.add(imgUrl); seen.add(key);
-        result.images.push({ url: new URL(imgUrl, url).href, source, width: w, height: h });
+      // ---- Extract key images (up to 12, URL dedup only) ----
+      function resolveUrl(raw, base) {
+        try { return new URL(raw, base).href; } catch { return ""; }
       }
 
-      // Priority 1: og:image
+      const seenUrls = new Set();
+
+      function addImage(imgUrl, source) {
+        const clean = resolveUrl(imgUrl, url);
+        if (!clean) return;
+        if (clean.startsWith("data:image/svg")) return;
+        if (seenUrls.has(clean)) return;
+        // Skip known tiny/tracking patterns
+        const basename = clean.split("/").pop().toLowerCase();
+        if (/\b(pixel|1x1|spacer|dot|blank|track(ing)?)\b/.test(basename)) return;
+        if (clean.includes("1x1.gif") || clean.includes("blank.gif") || clean.includes("spacer.gif")) return;
+        seenUrls.add(clean);
+        result.images.push({ url: clean, source });
+      }
+
+      // Priority 1: meta tags
       addImage(doc.querySelector('meta[property="og:image"]')?.getAttribute("content"), "og:image");
-      // Priority 2: twitter:image
       addImage(doc.querySelector('meta[name="twitter:image"]')?.getAttribute("content"), "twitter:image");
-      // Priority 3: schema.org image
       doc.querySelectorAll('[itemprop="image"]').forEach(el => {
         addImage(el.getAttribute("content") || el.getAttribute("src"), "schema");
       });
 
-      // Priority 4: content images
-      const imgs = (main || doc).querySelectorAll("img[src]");
-      const candidates = [];
-      for (const img of imgs) {
+      // Priority 2: all images, sorted by heuristic quality
+      const allImgs = doc.querySelectorAll("img[src], img[data-src]");
+      const scored = [];
+      for (const img of allImgs) {
         const src = img.getAttribute("src") || img.getAttribute("data-src") || "";
-        if (!src || src.startsWith("data:image/svg")) continue;
-        // Don't skip logo/icon/avatar outright — just penalize small ones
-        const w = parseInt(img.getAttribute("width") || img.naturalWidth || img.style?.width || "0");
-        const h = parseInt(img.getAttribute("height") || img.naturalHeight || img.style?.height || "0");
-        const area = w * h || (img.closest("header,nav,footer") ? 400 : 5000);
-        candidates.push({ url: src, area, w, h });
+        if (!src || src.startsWith("data:")) continue;
+
+        // Score by context
+        let score = 100;
+        const parent = img.parentElement;
+        const classes = (img.className?.toString() || "") + " " + (parent?.className?.toString() || "");
+        const srcLower = src.toLowerCase();
+
+        // Penalize probable icons/logos
+        if (/\b(icon|logo|avatar|favicon|emoji|badge|thumbnail|thumb)\b/i.test(classes)) score -= 40;
+        if (/\b(icon|logo|avatar|favicon|emoji|badge)\b/i.test(srcLower)) score -= 50;
+
+        // Reward probable content images
+        if (/\b(hero|banner|cover|feature|screenshot|photo|gallery|content|main|preview)\b/i.test(classes)) score += 40;
+        if (img.closest("article, main, .content, .post, .article-body")) score += 30;
+        if (img.closest("header, nav, footer, .sidebar, .menu")) score -= 30;
+
+        // Prefer larger images (use CSS size as hint)
+        const iw = img.naturalWidth || img.width || 0;
+        const ih = img.naturalHeight || img.height || 0;
+        if (iw > 200 && ih > 150) score += 50;
+        if (iw < 50 || ih < 50) score -= 60;
+
+        scored.push({ url: src, score });
       }
-      candidates.sort((a, b) => b.area - a.area);
-      for (const c of candidates) {
+      scored.sort((a, b) => b.score - a.score);
+      for (const s of scored) {
         if (result.images.length >= 12) break;
-        addImage(c.url, "content", c.w, c.h);
+        addImage(s.url, "content");
+      }
+
+      // If still less than 6, try lazy-loaded images and picture elements
+      if (result.images.length < 6) {
+        doc.querySelectorAll("picture source[srcset], img[data-lazy-src], img[loading='lazy']").forEach(el => {
+          if (result.images.length >= 12) return;
+          const src = el.getAttribute("srcset")?.split(",")?.[0]?.trim()?.split(" ")[0]
+            || el.getAttribute("data-lazy-src") || el.getAttribute("data-src") || "";
+          addImage(src, "content");
+        });
       }
     } catch (err) {
       result.error = err.name === "AbortError" ? "超时" : err.message;
